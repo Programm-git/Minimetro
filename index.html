@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>Linea — Metro Netzwerk Strategiespiel</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <canvas id="game-canvas"></canvas>
+
+    <div id="hud-top" class="hud">
+      <div class="hud-stat" title="Tag / Wochentag">
+        <span id="stat-day">Tag 1</span>
+        <span id="stat-weekday">Montag</span>
+      </div>
+      <div class="hud-stat" title="Beförderte Fahrgäste">
+        <span class="hud-icon">👤</span><span id="stat-passengers">0</span>
+      </div>
+      <div class="hud-stat" title="Verfügbare Tunnel">
+        <span class="hud-icon">🚇</span><span id="stat-tunnels">2</span>
+      </div>
+      <div class="hud-stat" title="Züge im Einsatz">
+        <span class="hud-icon">🚆</span><span id="stat-trains">0</span>
+      </div>
+    </div>
+
+    <div id="hud-bottom" class="hud">
+      <div id="line-selector"></div>
+      <div id="speed-controls">
+        <button class="speed-btn" data-speed="0" title="Pause">⏸</button>
+        <button class="speed-btn active" data-speed="1" title="1×">1×</button>
+        <button class="speed-btn" data-speed="2" title="2×">2×</button>
+        <button class="speed-btn" data-speed="3" title="3×">3×</button>
+      </div>
+    </div>
+
+    <div id="toast" class="hidden"></div>
+
+    <div id="overlay-start" class="overlay">
+      <div class="overlay-card">
+        <h1>Linea</h1>
+        <p class="subtitle">Baue ein U-Bahn-Netz. Halte die Stadt in Bewegung.</p>
+        <p class="hint">Ziehe eine Linie von Station zu Station, um sie zu verbinden.<br/>
+        Maus oder Touch — beides funktioniert.</p>
+        <div id="highscore-box"></div>
+        <button id="btn-start" class="btn-primary">Spiel starten</button>
+      </div>
+    </div>
+
+    <div id="overlay-upgrade" class="overlay hidden">
+      <div class="overlay-card">
+        <h2 id="upgrade-title">Woche geschafft!</h2>
+        <p class="subtitle">Wähle eine Erweiterung</p>
+        <div id="upgrade-choices" class="choice-row"></div>
+      </div>
+    </div>
+
+    <div id="overlay-gameover" class="overlay hidden">
+      <div class="overlay-card">
+        <h2>Game Over</h2>
+        <p class="subtitle" id="gameover-reason">Eine Station war zu lange überfüllt.</p>
+        <div id="gameover-stats" class="stats-grid"></div>
+        <button id="btn-restart" class="btn-primary">Neu starten</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
