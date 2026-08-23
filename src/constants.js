@@ -48,8 +48,8 @@ export const INITIAL_STATION_CAPACITY = 8;
 
 export const STATION_SPAWN_INTERVAL_START = 22; // Sekunden zwischen neuen Stationen
 export const STATION_SPAWN_INTERVAL_MIN = 8;
-export const PASSENGER_SPAWN_INTERVAL_START = 4.5; // Sekunden zwischen neuen Fahrgästen (global)
-export const PASSENGER_SPAWN_INTERVAL_MIN = 1.1;
+export const PASSENGER_SPAWN_INTERVAL_START = 2.2; // Sekunden zwischen neuen Fahrgästen (global)
+export const PASSENGER_SPAWN_INTERVAL_MIN = 0.5;
 
 export const OVERCROWD_COUNTDOWN = 10; // Sekunden bis Game Over nach Überschreiten der Kapazität
 
