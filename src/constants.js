@@ -36,9 +36,9 @@ export const LINE_COLORS = [
 export const DAY_SECONDS = 17; // simulierte Tageslänge in Echtzeitsekunden bei 1x
 export const WEEKDAYS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
 
-export const WORLD_PADDING = 70; // Mindestabstand einer Station zum Kartenrand
-export const MIN_STATION_DIST = 95; // Mindestabstand zwischen zwei Stationen
-export const STATION_RADIUS = 13;
+export const WORLD_PADDING = 80; // Mindestabstand einer Station zum Kartenrand
+export const MIN_STATION_DIST = 115; // Mindestabstand zwischen zwei Stationen
+export const STATION_RADIUS = 16;
 
 export const INITIAL_STATION_COUNT = 3;
 export const INITIAL_MAX_LINES = 3;

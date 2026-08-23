@@ -1,8 +1,8 @@
 import { STATION_RADIUS, OVERCROWD_COUNTDOWN } from "./constants.js";
 
-const LINE_SPACING = 15; // Pixelabstand paralleler Linien auf gemeinsamer Kante
-const LINE_WIDTH = 11; // Breite einer Fahrbahnstreifen-Linie
-const END_CAP_LENGTH = 30; // Länge des quer stehenden Endstücks an Linien-Endstationen
+const LINE_SPACING = 18; // Pixelabstand paralleler Linien auf gemeinsamer Kante
+const LINE_WIDTH = 13; // Breite einer Fahrbahnstreifen-Linie
+const END_CAP_LENGTH = 36; // Länge des quer stehenden Endstücks an Linien-Endstationen
 
 function edgeKey(aId, bId) { return aId < bId ? `${aId}|${bId}` : `${bId}|${aId}`; }
 
@@ -247,25 +247,47 @@ function drawTrains(ctx, state, edgeLines) {
     ctx.rotate(angle);
     ctx.fillStyle = "#fff";
     ctx.strokeStyle = line.color;
-    ctx.lineWidth = 3;
-    const w = 22, h = 12;
-    roundRect(ctx, -w / 2, -h / 2, w, h, 4);
+    ctx.lineWidth = 4;
+    const w = 30, h = 17;
+    roundRect(ctx, -w / 2, -h / 2, w, h, 6);
     ctx.fill();
     ctx.stroke();
     ctx.restore();
 
-    // Fahrgäste als kleine Punkte über dem Zug
-    if (train.passengers.length > 0) {
-      const n = train.passengers.length;
-      const spacing = 6;
-      const startX = pos.x - ((n - 1) * spacing) / 2;
-      ctx.save();
-      for (let i = 0; i < n; i++) {
-        drawShape(ctx, train.passengers[i].destShape, startX + i * spacing, pos.y - 14, 3, shapeColor(train.passengers[i].destShape), null, 0);
-      }
-      ctx.restore();
-    }
+    // Fahrgäste als klar erkennbare Formen oberhalb des Zugs (bleiben aufrecht,
+    // unabhängig von der Fahrtrichtung, damit die Zielform ablesbar ist).
+    drawTrainPassengers(ctx, train, pos);
   }
+}
+
+function drawTrainPassengers(ctx, train, pos) {
+  const n = train.passengers.length;
+  if (n === 0) return;
+  const maxShown = 8;
+  const shown = Math.min(n, maxShown);
+  const spacing = 15;
+  const startX = pos.x - ((shown - 1) * spacing) / 2;
+  const y = pos.y - 21;
+  ctx.save();
+  for (let i = 0; i < shown; i++) {
+    const x = startX + i * spacing;
+    ctx.beginPath();
+    ctx.arc(x, y, 8, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(43,47,51,0.15)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    drawShape(ctx, train.passengers[i].destShape, x, y, 5, "#2b2f33", null, 0);
+  }
+  if (n > shown) {
+    ctx.fillStyle = "#2b2f33";
+    ctx.font = "bold 11px sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText(`+${n - shown}`, startX + shown * spacing - 2, y + 4);
+    ctx.textAlign = "start";
+  }
+  ctx.restore();
 }
 
 function roundRect(ctx, x, y, w, h, r) {
@@ -276,14 +298,6 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.arcTo(x, y + h, x, y, r);
   ctx.arcTo(x, y, x + w, y, r);
   ctx.closePath();
-}
-
-function shapeColor(shape) {
-  const map = {
-    circle: "#4a4f54", triangle: "#4a4f54", square: "#4a4f54",
-    diamond: "#4a4f54", star: "#4a4f54", cross: "#4a4f54",
-  };
-  return map[shape] || "#4a4f54";
 }
 
 function drawStations(ctx, state, ui) {
@@ -317,8 +331,8 @@ function drawWaitingPassengers(ctx, station) {
   if (n === 0) return;
   const cap = station.capacity;
   const cols = 4;
-  const dotR = 3;
-  const spacing = 8;
+  const dotR = 3.5;
+  const spacing = 9.5;
   const baseX = station.x - ((Math.min(n, cols) - 1) * spacing) / 2;
   const baseY = station.y + STATION_RADIUS + 12;
   const showCount = Math.min(n, 16);

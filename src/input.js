@@ -1,6 +1,6 @@
 import { STATION_RADIUS } from "./constants.js";
 
-const HIT_RADIUS = 24; // großzügige Trefferzone für Maus & Touch
+const HIT_RADIUS = 28; // großzügige Trefferzone für Maus & Touch
 
 function hitTestStation(state, x, y) {
   let best = null;

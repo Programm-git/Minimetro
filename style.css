@@ -75,8 +75,23 @@ html, body {
   color: var(--ink);
   pointer-events: auto;
 }
-.hud-stat #stat-weekday { color: var(--ink-soft); font-weight: 500; margin-left: 2px; }
 .hud-icon { opacity: 0.8; font-size: 13px; }
+
+.week-clock-stat { padding: 6px 16px 6px 8px; gap: 10px; }
+.clock-track { fill: none; stroke: rgba(43,47,51,0.12); stroke-width: 3; }
+.clock-progress {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 106.8;
+  stroke-dashoffset: 106.8;
+  transition: stroke-dashoffset 0.25s linear;
+}
+.clock-tick { stroke: rgba(43,47,51,0.3); stroke-width: 1.6; }
+.clock-label { display: flex; flex-direction: column; line-height: 1.2; }
+.clock-label #stat-weekday { font-size: 13px; font-weight: 700; }
+.clock-label #stat-day { font-size: 10.5px; color: var(--ink-soft); font-weight: 500; letter-spacing: 0.01em; }
 
 #hud-bottom {
   bottom: 0;
@@ -101,8 +116,8 @@ html, body {
 }
 
 .line-chip {
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   border: 2px solid rgba(0,0,0,0.06);
   cursor: pointer;
@@ -139,26 +154,37 @@ html, body {
 
 #speed-controls {
   display: flex;
-  gap: 6px;
-  background: rgba(255,255,255,0.82);
-  backdrop-filter: blur(6px);
-  border-radius: 999px;
-  padding: 6px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  align-items: center;
+  gap: 8px;
   pointer-events: auto;
 }
 
 .speed-btn {
   border: none;
-  background: transparent;
+  background: #ffffff;
   color: var(--ink-soft);
   font-weight: 700;
   font-size: 13px;
-  padding: 6px 12px;
-  border-radius: 999px;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  transition: transform 0.12s ease, background 0.15s ease, color 0.15s ease;
 }
+.speed-btn:active { transform: scale(0.92); }
 .speed-btn.active { background: var(--ink); color: #fff; }
+.speed-btn[data-speed="0"] {
+  width: 46px;
+  height: 46px;
+  font-size: 16px;
+  background: #d9dcd3;
+  color: var(--ink);
+}
+.speed-btn[data-speed="0"].active { background: var(--ink); color: #fff; }
 
 #toast {
   position: absolute;

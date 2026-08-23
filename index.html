@@ -11,9 +11,16 @@
     <canvas id="game-canvas"></canvas>
 
     <div id="hud-top" class="hud">
-      <div class="hud-stat" title="Tag / Wochentag">
-        <span id="stat-day">Tag 1</span>
-        <span id="stat-weekday">Montag</span>
+      <div class="hud-stat week-clock-stat" title="Wochenfortschritt">
+        <svg id="clock-svg" viewBox="0 0 44 44" width="34" height="34">
+          <circle class="clock-track" cx="22" cy="22" r="17"></circle>
+          <g id="clock-ticks"></g>
+          <circle id="clock-progress" class="clock-progress" cx="22" cy="22" r="17" transform="rotate(-90 22 22)"></circle>
+        </svg>
+        <div class="clock-label">
+          <span id="stat-weekday">Montag</span>
+          <span id="stat-day">Tag 1 · Woche 1</span>
+        </div>
       </div>
       <div class="hud-stat" title="Beförderte Fahrgäste">
         <span class="hud-icon">👤</span><span id="stat-passengers">0</span>
