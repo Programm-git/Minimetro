@@ -100,11 +100,18 @@ function drawShape(ctx, shape, x, y, r, fillStyle, strokeStyle, lineWidth) {
   if (strokeStyle) { ctx.strokeStyle = strokeStyle; ctx.lineWidth = lineWidth || 2; ctx.stroke(); }
 }
 
-export function draw(ctx, state, ui) {
-  const { width, height } = state;
-  ctx.clearRect(0, 0, width, height);
+// `viewport` ist die sichtbare Bildschirmgröße (CSS-Pixel). Die Welt (state.width/
+// state.height) kann größer sein; `ui.camera` bestimmt den sichtbaren Ausschnitt,
+// sodass die Karte wächst, ohne dass Stationen/Züge selbst größer werden.
+export function draw(ctx, state, ui, viewport) {
+  const camera = ui.camera || { x: 0, y: 0 };
 
-  drawBackground(ctx, width, height);
+  ctx.save();
+  ctx.clearRect(0, 0, viewport.width, viewport.height);
+  drawBackground(ctx, viewport.width, viewport.height);
+
+  ctx.translate(-camera.x, -camera.y);
+
   drawRiver(ctx, state.river);
 
   const edgeLines = buildOffsetTable(state.lines);
@@ -113,6 +120,7 @@ export function draw(ctx, state, ui) {
   if (ui.draft && ui.draft.stationIds.length > 0) drawDraft(ctx, state, ui.draft, ui.pointer);
   drawTrains(ctx, state, edgeLines);
   drawStations(ctx, state, ui);
+  ctx.restore();
 }
 
 function drawBackground(ctx, w, h) {

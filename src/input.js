@@ -1,4 +1,4 @@
-import { STATION_RADIUS } from "./constants.js";
+import { clampCamera } from "./camera.js";
 
 const HIT_RADIUS = 28; // großzügige Trefferzone für Maus & Touch
 
@@ -18,10 +18,16 @@ function findLineWithEndpoint(state, stationId) {
 
 export function attachInput(canvas, state, ui, hooks) {
   let activePointerId = null;
+  let mode = null; // "draft" | "pan"
+  let panStart = null; // { screenX, screenY, camX, camY }
 
-  function toCanvasCoords(evt) {
+  function screenCoords(evt) {
     const rect = canvas.getBoundingClientRect();
-    return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+    return { x: evt.clientX - rect.left, y: evt.clientY - rect.top, rectW: rect.width, rectH: rect.height };
+  }
+
+  function toWorldCoords(screen) {
+    return { x: screen.x + ui.camera.x, y: screen.y + ui.camera.y };
   }
 
   function startDraftFrom(station) {
@@ -86,23 +92,40 @@ export function attachInput(canvas, state, ui, hooks) {
 
   function onPointerDown(evt) {
     if (activePointerId !== null) return;
-    const { x, y } = toCanvasCoords(evt);
-    const station = hitTestStation(state, x, y);
-    if (!station) return;
+    const screen = screenCoords(evt);
+    const world = toWorldCoords(screen);
+    const station = hitTestStation(state, world.x, world.y);
     evt.preventDefault();
     activePointerId = evt.pointerId;
     canvas.setPointerCapture(activePointerId);
-    ui.pointer = { x, y };
-    startDraftFrom(station);
+
+    if (station) {
+      mode = "draft";
+      ui.pointer = world;
+      startDraftFrom(station);
+    } else {
+      mode = "pan";
+      panStart = { screenX: screen.x, screenY: screen.y, camX: ui.camera.x, camY: ui.camera.y, rectW: screen.rectW, rectH: screen.rectH };
+    }
   }
 
   function onPointerMove(evt) {
-    const { x, y } = toCanvasCoords(evt);
-    ui.pointer = { x, y };
     if (activePointerId === null || evt.pointerId !== activePointerId) return;
     evt.preventDefault();
-    const station = hitTestStation(state, x, y);
-    if (station) extendDraftTo(station);
+    const screen = screenCoords(evt);
+
+    if (mode === "draft") {
+      const world = toWorldCoords(screen);
+      ui.pointer = world;
+      const station = hitTestStation(state, world.x, world.y);
+      if (station) extendDraftTo(station);
+    } else if (mode === "pan") {
+      const dx = screen.x - panStart.screenX;
+      const dy = screen.y - panStart.screenY;
+      ui.camera.x = panStart.camX - dx;
+      ui.camera.y = panStart.camY - dy;
+      clampCamera(ui.camera, state.width, state.height, panStart.rectW, panStart.rectH);
+    }
   }
 
   function onPointerUp(evt) {
@@ -110,7 +133,9 @@ export function attachInput(canvas, state, ui, hooks) {
     evt.preventDefault();
     try { canvas.releasePointerCapture(activePointerId); } catch (e) { /* noop */ }
     activePointerId = null;
-    finishDraft();
+    if (mode === "draft") finishDraft();
+    mode = null;
+    panStart = null;
     ui.pointer = null;
   }
 

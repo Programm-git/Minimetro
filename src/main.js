@@ -1,17 +1,21 @@
 import { GameState } from "./simulation.js";
 import { draw } from "./render.js";
 import { attachInput } from "./input.js";
+import { clampCamera, centerCameraOn } from "./camera.js";
 import {
   initStartOverlay, initSpeedControls, showToast, updateHud,
   renderLineSelector, showUpgradeOverlay, showGameOver, hideGameOver,
 } from "./ui.js";
 import { saveHighscoreIfBetter } from "./save.js";
 
+const WORLD_SCALE = 2; // Die Karte ist doppelt so groß wie der sichtbare Ausschnitt
+
 const canvas = document.getElementById("game-canvas");
 const ctx = canvas.getContext("2d");
 
 let state = null;
-let ui = { draft: null, pointer: null, selectedLineId: null };
+let ui = { draft: null, pointer: null, selectedLineId: null, camera: { x: 0, y: 0 } };
+let viewport = { width: window.innerWidth, height: window.innerHeight };
 let running = false;
 let lastTime = null;
 let hudAccumulator = 0;
@@ -20,22 +24,22 @@ let gameOverHandled = false;
 
 function resizeCanvas() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const cssW = window.innerWidth;
-  const cssH = window.innerHeight;
-  canvas.width = Math.round(cssW * dpr);
-  canvas.height = Math.round(cssH * dpr);
+  viewport.width = window.innerWidth;
+  viewport.height = window.innerHeight;
+  canvas.width = Math.round(viewport.width * dpr);
+  canvas.height = Math.round(viewport.height * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (state) {
-    state.width = cssW;
-    state.height = cssH;
+    clampCamera(ui.camera, state.width, state.height, viewport.width, viewport.height);
   }
 }
 
 function newGame() {
-  const cssW = window.innerWidth;
-  const cssH = window.innerHeight;
-  state = new GameState(cssW, cssH, Math.random);
-  ui = { draft: null, pointer: null, selectedLineId: null };
+  const worldW = viewport.width * WORLD_SCALE;
+  const worldH = viewport.height * WORLD_SCALE;
+  state = new GameState(worldW, worldH, Math.random);
+  ui = { draft: null, pointer: null, selectedLineId: null, camera: { x: 0, y: 0 } };
+  centerCameraOn(ui.camera, worldW / 2, worldH / 2, worldW, worldH, viewport.width, viewport.height);
   upgradeShown = false;
   gameOverHandled = false;
   hideGameOver();
@@ -87,7 +91,7 @@ function loop(timestamp) {
     updateHud(state);
   }
 
-  draw(ctx, state, ui);
+  draw(ctx, state, ui, viewport);
   requestAnimationFrame(loop);
 }
 
