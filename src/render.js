@@ -1,8 +1,10 @@
 import { STATION_RADIUS, OVERCROWD_COUNTDOWN } from "./constants.js";
+import { computeEdgeWaypoints, pointAlongPath } from "./trackGeometry.js";
 
 const LINE_SPACING = 18; // Pixelabstand paralleler Linien auf gemeinsamer Kante
-const LINE_WIDTH = 13; // Breite einer Fahrbahnstreifen-Linie
+const LINE_WIDTH = 13; // Breite einer Fahrbahnstreifen-Linie (einheitlich für alle Linien)
 const END_CAP_LENGTH = 36; // Länge des quer stehenden Endstücks an Linien-Endstationen
+const CORNER_RADIUS = 22; // Rundung an Richtungswechseln
 
 function edgeKey(aId, bId) { return aId < bId ? `${aId}|${bId}` : `${bId}|${aId}`; }
 
@@ -35,16 +37,43 @@ function perpOffset(ax, ay, bx, by, amount) {
   return { x: (-dy / len) * amount, y: (dx / len) * amount };
 }
 
-export function pointOnLineAtSegment(state, edgeLines, line, fromIdx, toIdx, t) {
-  const a = state.getStationById(line.stations[fromIdx]);
-  const b = state.getStationById(line.stations[toIdx]);
-  if (!a || !b) return { x: 0, y: 0 };
+// Verschiebt Start- und Endpunkt einer Kante um denselben senkrechten Vektor
+// (bestimmt durch die Gesamtrichtung A→B) und wendet danach dieselbe
+// Horizontal/Vertikal/45°-Zerlegung an. Da beide Endpunkte um exakt denselben
+// Vektor verschoben werden, ist das Ergebnis eine reine Parallelverschiebung
+// der unversetzten Strecke – dadurch bleiben mehrere Linien auf derselben
+// Kante auch in Kurven exakt parallel.
+function getOffsetEdgeWaypoints(a, b, offsetAmount) {
+  const p = perpOffset(a.x, a.y, b.x, b.y, offsetAmount);
+  const offsetA = { x: a.x + p.x, y: a.y + p.y };
+  const offsetB = { x: b.x + p.x, y: b.y + p.y };
+  return computeEdgeWaypoints(offsetA, offsetB);
+}
+
+function edgeWaypointsForLine(state, edgeLines, line, idxA, idxB) {
+  const a = state.getStationById(line.stations[idxA]);
+  const b = state.getStationById(line.stations[idxB]);
+  if (!a || !b) return null;
   const off = offsetForSegment(edgeLines, a.id, b.id, line.id);
-  const p = perpOffset(a.x, a.y, b.x, b.y, off);
-  return {
-    x: a.x + (b.x - a.x) * t + p.x,
-    y: a.y + (b.y - a.y) * t + p.y,
-  };
+  return getOffsetEdgeWaypoints(a, b, off);
+}
+
+// Zeichnet eine Punktfolge als durchgehende Linie mit sanft abgerundeten
+// Richtungswechseln (Canvas arcTo rundet automatisch, unabhängig davon, ob
+// die angrenzenden Teilstücke horizontal, vertikal oder diagonal sind).
+function strokeRoundedPath(ctx, points, cornerRadius) {
+  if (!points || points.length < 2) return;
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length - 1; i++) {
+    const prev = points[i - 1], curr = points[i], next = points[i + 1];
+    const d1 = Math.hypot(curr.x - prev.x, curr.y - prev.y);
+    const d2 = Math.hypot(next.x - curr.x, next.y - curr.y);
+    const r = Math.min(cornerRadius, d1 / 2, d2 / 2);
+    ctx.arcTo(curr.x, curr.y, next.x, next.y, r);
+  }
+  ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+  ctx.stroke();
 }
 
 function drawShape(ctx, shape, x, y, r, fillStyle, strokeStyle, lineWidth) {
@@ -104,6 +133,9 @@ function drawShape(ctx, shape, x, y, r, fillStyle, strokeStyle, lineWidth) {
 // state.height) ist größer als der Viewport; `ui.zoom`/`ui.camera` bestimmen den
 // sichtbaren Ausschnitt (per Mausrad/Pinch verstellbar), sodass Stationen, Linien
 // und Züge unabhängig von der Kartengröße dieselbe gezeichnete Größe behalten.
+//
+// Render-Reihenfolge (wichtig für den U-Bahn-Plan-Look):
+// Hintergrund -> Fluss -> Metro-Linien -> Züge -> Stationen -> Passagiere/UI
 export function draw(ctx, state, ui, viewport) {
   const zoom = ui.zoom;
   const camera = ui.camera;
@@ -145,36 +177,22 @@ function drawRiver(ctx, river) {
   ctx.restore();
 }
 
+// Jede Linie wird als Folge einzelner Kanten (Stationspaare) gezeichnet, da
+// unterschiedliche Kanten derselben Linie von unterschiedlich vielen anderen
+// Linien "mitbenutzt" werden können und daher unterschiedliche Parallel-Offsets
+// benötigen. Am Übergang (an der gemeinsamen Station) verdeckt das Stations-
+// symbol jede kleine Naht zwischen zwei unterschiedlich versetzten Kanten.
 function drawLines(ctx, state, edgeLines) {
   ctx.save();
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
+  ctx.lineWidth = LINE_WIDTH;
   for (const line of state.lines) {
     ctx.strokeStyle = line.color;
-    ctx.lineWidth = LINE_WIDTH;
-    ctx.beginPath();
-    for (let i = 0; i < line.stations.length; i++) {
-      const st = state.getStationById(line.stations[i]);
-      if (!st) continue;
-      let x = st.x, y = st.y;
-      if (i < line.stations.length - 1) {
-        const next = state.getStationById(line.stations[i + 1]);
-        if (next) {
-          const off = offsetForSegment(edgeLines, st.id, next.id, line.id);
-          const p = perpOffset(st.x, st.y, next.x, next.y, off);
-          x += p.x; y += p.y;
-        }
-      } else if (i > 0) {
-        const prev = state.getStationById(line.stations[i - 1]);
-        if (prev) {
-          const off = offsetForSegment(edgeLines, prev.id, st.id, line.id);
-          const p = perpOffset(prev.x, prev.y, st.x, st.y, off);
-          x += p.x; y += p.y;
-        }
-      }
-      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    for (let i = 0; i < line.stations.length - 1; i++) {
+      const points = edgeWaypointsForLine(state, edgeLines, line, i, i + 1);
+      if (points) strokeRoundedPath(ctx, points, CORNER_RADIUS);
     }
-    ctx.stroke();
   }
   ctx.restore();
 }
@@ -184,6 +202,7 @@ function drawLines(ctx, state, edgeLines) {
 function drawLineEndCaps(ctx, state, edgeLines) {
   ctx.save();
   ctx.lineCap = "round";
+  ctx.lineWidth = LINE_WIDTH;
   for (const line of state.lines) {
     if (line.stations.length < 2) continue;
     const n = line.stations.length;
@@ -194,28 +213,26 @@ function drawLineEndCaps(ctx, state, edgeLines) {
 }
 
 function drawEndCap(ctx, state, edgeLines, line, endIdx, neighborIdx) {
-  const endSt = state.getStationById(line.stations[endIdx]);
-  const neighborSt = state.getStationById(line.stations[neighborIdx]);
-  if (!endSt || !neighborSt) return;
+  const points = endIdx < neighborIdx
+    ? edgeWaypointsForLine(state, edgeLines, line, endIdx, neighborIdx)
+    : edgeWaypointsForLine(state, edgeLines, line, neighborIdx, endIdx);
+  if (!points || points.length < 2) return;
 
-  const off = offsetForSegment(edgeLines, endSt.id, neighborSt.id, line.id);
-  // Richtung entlang der Linie so wählen, dass sie zum selben Offset-Vorzeichen
-  // führt, das drawLines() für diese Endstation verwendet hat.
-  const dir = endIdx === 0
-    ? perpOffset(endSt.x, endSt.y, neighborSt.x, neighborSt.y, off)
-    : perpOffset(neighborSt.x, neighborSt.y, endSt.x, endSt.y, off);
-  const px = endSt.x + dir.x;
-  const py = endSt.y + dir.y;
+  // Position und Richtung des allerersten (bzw. letzten) gezeichneten
+  // Teilstücks an der Endstation verwenden, damit der Prellbock exakt
+  // senkrecht zur tatsächlich sichtbaren Fahrtrichtung steht.
+  const atStart = endIdx < neighborIdx;
+  const p0 = atStart ? points[0] : points[points.length - 1];
+  const p1 = atStart ? points[1] : points[points.length - 2];
 
-  const dx = neighborSt.x - endSt.x, dy = neighborSt.y - endSt.y;
+  const dx = p1.x - p0.x, dy = p1.y - p0.y;
   const len = Math.hypot(dx, dy) || 1;
-  const perpX = -dy / len, perpY = dx / len; // senkrecht zur Fahrtrichtung
+  const perpX = -dy / len, perpY = dx / len;
 
   ctx.strokeStyle = line.color;
-  ctx.lineWidth = LINE_WIDTH;
   ctx.beginPath();
-  ctx.moveTo(px - perpX * END_CAP_LENGTH / 2, py - perpY * END_CAP_LENGTH / 2);
-  ctx.lineTo(px + perpX * END_CAP_LENGTH / 2, py + perpY * END_CAP_LENGTH / 2);
+  ctx.moveTo(p0.x - perpX * END_CAP_LENGTH / 2, p0.y - perpY * END_CAP_LENGTH / 2);
+  ctx.lineTo(p0.x + perpX * END_CAP_LENGTH / 2, p0.y + perpY * END_CAP_LENGTH / 2);
   ctx.stroke();
 }
 
@@ -246,11 +263,19 @@ function drawTrains(ctx, state, edgeLines) {
       if (!st) continue;
       pos = { x: st.x, y: st.y };
     } else {
-      const a = state.getStationById(line.stations[train.fromIndex]);
-      const b = state.getStationById(line.stations[train.toIndex]);
-      if (!a || !b) continue;
-      pos = pointOnLineAtSegment(state, edgeLines, line, train.fromIndex, train.toIndex, train.t);
-      angle = Math.atan2(b.y - a.y, b.x - a.x);
+      // Wegpunkte immer in kanonischer (aufsteigender) Stationsreihenfolge
+      // berechnen – identisch zu drawLines() –, damit der Zug exakt auf dem
+      // gezeichneten (ggf. parallel versetzten) Gleis bleibt, egal in welche
+      // Richtung er gerade fährt.
+      const lowIdx = Math.min(train.fromIndex, train.toIndex);
+      const highIdx = Math.max(train.fromIndex, train.toIndex);
+      const points = edgeWaypointsForLine(state, edgeLines, line, lowIdx, highIdx);
+      if (!points) continue;
+      const forward = train.fromIndex < train.toIndex;
+      const orderedPoints = forward ? points : points.slice().reverse();
+      const along = pointAlongPath(orderedPoints, train.t);
+      pos = { x: along.x, y: along.y };
+      angle = along.angle;
     }
 
     ctx.save();
@@ -274,7 +299,7 @@ function drawTrains(ctx, state, edgeLines) {
 function drawTrainPassengers(ctx, train, pos) {
   const n = train.passengers.length;
   if (n === 0) return;
-  const maxShown = 8;
+  const maxShown = 6; // ein Waggon nimmt bis zu 6 Fahrgäste sichtbar mit
   const shown = Math.min(n, maxShown);
   const spacing = 15;
   const startX = pos.x - ((shown - 1) * spacing) / 2;
