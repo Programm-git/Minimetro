@@ -1,20 +1,19 @@
 import { GameState } from "./simulation.js";
 import { draw } from "./render.js";
 import { attachInput } from "./input.js";
-import { clampCamera, centerCameraOn } from "./camera.js";
 import {
   initStartOverlay, initSpeedControls, showToast, updateHud,
   renderLineSelector, showUpgradeOverlay, showGameOver, hideGameOver,
 } from "./ui.js";
 import { saveHighscoreIfBetter } from "./save.js";
 
-const WORLD_SCALE = 2; // Die Karte ist doppelt so groß wie der sichtbare Ausschnitt
+const WORLD_SCALE = 2; // Die Karte ist mindestens doppelt so groß wie der sichtbare Ausschnitt
 
 const canvas = document.getElementById("game-canvas");
 const ctx = canvas.getContext("2d");
 
 let state = null;
-let ui = { draft: null, pointer: null, selectedLineId: null, camera: { x: 0, y: 0 } };
+let ui = { draft: null, pointer: null, selectedLineId: null, zoom: 1, offsetX: 0, offsetY: 0 };
 let viewport = { width: window.innerWidth, height: window.innerHeight };
 let running = false;
 let lastTime = null;
@@ -29,17 +28,13 @@ function resizeCanvas() {
   canvas.width = Math.round(viewport.width * dpr);
   canvas.height = Math.round(viewport.height * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  if (state) {
-    clampCamera(ui.camera, state.width, state.height, viewport.width, viewport.height);
-  }
 }
 
 function newGame() {
   const worldW = viewport.width * WORLD_SCALE;
   const worldH = viewport.height * WORLD_SCALE;
   state = new GameState(worldW, worldH, Math.random);
-  ui = { draft: null, pointer: null, selectedLineId: null, camera: { x: 0, y: 0 } };
-  centerCameraOn(ui.camera, worldW / 2, worldH / 2, worldW, worldH, viewport.width, viewport.height);
+  ui = { draft: null, pointer: null, selectedLineId: null, zoom: 1, offsetX: 0, offsetY: 0 };
   upgradeShown = false;
   gameOverHandled = false;
   hideGameOver();

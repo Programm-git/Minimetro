@@ -101,16 +101,23 @@ function drawShape(ctx, shape, x, y, r, fillStyle, strokeStyle, lineWidth) {
 }
 
 // `viewport` ist die sichtbare Bildschirmgröße (CSS-Pixel). Die Welt (state.width/
-// state.height) kann größer sein; `ui.camera` bestimmt den sichtbaren Ausschnitt,
-// sodass die Karte wächst, ohne dass Stationen/Züge selbst größer werden.
+// state.height) ist größer als der Viewport; die gesamte Welt wird verkleinert
+// dargestellt (Zoom), sodass die Karte insgesamt mehr Fläche zeigt, ohne dass
+// Stationen, Linien oder Züge selbst größer gezeichnet würden.
 export function draw(ctx, state, ui, viewport) {
-  const camera = ui.camera || { x: 0, y: 0 };
+  const zoom = Math.min(viewport.width / state.width, viewport.height / state.height);
+  ui.zoom = zoom;
+  const offsetX = (viewport.width - state.width * zoom) / 2;
+  const offsetY = (viewport.height - state.height * zoom) / 2;
+  ui.offsetX = offsetX;
+  ui.offsetY = offsetY;
 
   ctx.save();
   ctx.clearRect(0, 0, viewport.width, viewport.height);
   drawBackground(ctx, viewport.width, viewport.height);
 
-  ctx.translate(-camera.x, -camera.y);
+  ctx.translate(offsetX, offsetY);
+  ctx.scale(zoom, zoom);
 
   drawRiver(ctx, state.river);
 
