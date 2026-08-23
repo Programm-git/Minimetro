@@ -135,22 +135,6 @@ html, body {
 .line-chip.empty {
   background: repeating-linear-gradient(45deg, #dcdfd8, #dcdfd8 4px, #eceee8 4px, #eceee8 8px);
 }
-.line-chip .chip-x {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--ink);
-  color: #fff;
-  font-size: 11px;
-  line-height: 16px;
-  text-align: center;
-  display: none;
-}
-.line-chip:not(.empty):hover .chip-x,
-.line-chip.selected .chip-x { display: block; }
 
 #speed-controls {
   display: flex;
@@ -233,6 +217,14 @@ html, body {
 .subtitle { color: var(--ink-soft); margin: 0 0 16px; font-size: 14px; }
 .hint { font-size: 13px; color: var(--ink-soft); line-height: 1.5; margin-bottom: 22px; }
 
+.overlay-card-small {
+  padding: 28px 32px;
+  max-width: 300px;
+}
+.overlay-card-small h2 { margin-bottom: 20px; }
+.overlay-card-small .choice-row { margin-top: 0; gap: 10px; flex-wrap: nowrap; }
+.overlay-card-small .btn-primary { flex: 1; margin-top: 0; padding: 12px 0; }
+
 .btn-primary {
   background: var(--ink);
   color: #fff;
@@ -245,6 +237,8 @@ html, body {
   margin-top: 8px;
 }
 .btn-primary:active { transform: scale(0.97); }
+.btn-danger { background: var(--danger); }
+.btn-secondary { background: #e4e6df; color: var(--ink); }
 
 #highscore-box {
   font-size: 13px;

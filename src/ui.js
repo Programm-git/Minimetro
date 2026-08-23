@@ -72,7 +72,10 @@ export function updateHud(state) {
   updateWeekClock(state);
 }
 
-export function renderLineSelector(state, ui, onSelect, onDelete) {
+const DOUBLE_TAP_MS = 400;
+const lastChipTap = new Map(); // lineId -> Zeitstempel des letzten Antippens
+
+export function renderLineSelector(state, ui, onSelect, onRequestDelete) {
   const container = el("line-selector");
   container.innerHTML = "";
   for (let i = 0; i < state.maxLines; i++) {
@@ -82,15 +85,37 @@ export function renderLineSelector(state, ui, onSelect, onDelete) {
     if (line) {
       chip.style.background = line.color;
       if (ui.selectedLineId === line.id) chip.classList.add("selected");
-      chip.addEventListener("click", () => onSelect(line.id));
-      const x = document.createElement("div");
-      x.className = "chip-x";
-      x.textContent = "×";
-      x.addEventListener("click", (e) => { e.stopPropagation(); onDelete(line.id); });
-      chip.appendChild(x);
+      chip.addEventListener("click", () => {
+        const now = Date.now();
+        const last = lastChipTap.get(line.id) || 0;
+        lastChipTap.set(line.id, now);
+        if (now - last < DOUBLE_TAP_MS) {
+          lastChipTap.delete(line.id);
+          onRequestDelete(line.id);
+        } else {
+          onSelect(line.id);
+        }
+      });
     }
     container.appendChild(chip);
   }
+}
+
+export function showDeleteConfirm(onConfirm) {
+  const overlay = el("overlay-confirm-delete");
+  overlay.classList.remove("hidden");
+
+  const cleanup = () => {
+    overlay.classList.add("hidden");
+    yesBtn.removeEventListener("click", onYes);
+    noBtn.removeEventListener("click", onNo);
+  };
+  const yesBtn = el("btn-confirm-delete-yes");
+  const noBtn = el("btn-confirm-delete-no");
+  const onYes = () => { cleanup(); onConfirm(); };
+  const onNo = () => cleanup();
+  yesBtn.addEventListener("click", onYes);
+  noBtn.addEventListener("click", onNo);
 }
 
 export function showUpgradeOverlay(state, choiceIds, onPick) {

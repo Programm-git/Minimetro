@@ -4,7 +4,7 @@ import { attachInput } from "./input.js";
 import { clampCamera } from "./camera.js";
 import {
   initStartOverlay, initSpeedControls, showToast, updateHud,
-  renderLineSelector, showUpgradeOverlay, showGameOver, hideGameOver,
+  renderLineSelector, showUpgradeOverlay, showGameOver, hideGameOver, showDeleteConfirm,
 } from "./ui.js";
 import { saveHighscoreIfBetter } from "./save.js";
 
@@ -47,22 +47,24 @@ function newGame() {
   upgradeShown = false;
   gameOverHandled = false;
   hideGameOver();
-  renderLineSelector(state, ui, onSelectLine, onDeleteLine);
+  renderLineSelector(state, ui, onSelectLine, onRequestDeleteLine);
   attachInput(canvas, state, ui, {
     onToast: showToast,
-    onLinesChanged: () => renderLineSelector(state, ui, onSelectLine, onDeleteLine),
+    onLinesChanged: () => renderLineSelector(state, ui, onSelectLine, onRequestDeleteLine),
   });
 }
 
 function onSelectLine(lineId) {
   ui.selectedLineId = ui.selectedLineId === lineId ? null : lineId;
-  renderLineSelector(state, ui, onSelectLine, onDeleteLine);
+  renderLineSelector(state, ui, onSelectLine, onRequestDeleteLine);
 }
 
-function onDeleteLine(lineId) {
-  state.removeLine(lineId);
-  if (ui.selectedLineId === lineId) ui.selectedLineId = null;
-  renderLineSelector(state, ui, onSelectLine, onDeleteLine);
+function onRequestDeleteLine(lineId) {
+  showDeleteConfirm(() => {
+    state.removeLine(lineId);
+    if (ui.selectedLineId === lineId) ui.selectedLineId = null;
+    renderLineSelector(state, ui, onSelectLine, onRequestDeleteLine);
+  });
 }
 
 function loop(timestamp) {
@@ -79,7 +81,7 @@ function loop(timestamp) {
     showUpgradeOverlay(state, state.pendingUpgradeChoices, (upgradeId) => {
       state.applyUpgrade(upgradeId);
       upgradeShown = false;
-      renderLineSelector(state, ui, onSelectLine, onDeleteLine);
+      renderLineSelector(state, ui, onSelectLine, onRequestDeleteLine);
     });
   }
 
