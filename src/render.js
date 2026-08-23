@@ -1,6 +1,8 @@
 import { STATION_RADIUS, OVERCROWD_COUNTDOWN } from "./constants.js";
 
-const LINE_SPACING = 7; // Pixelabstand paralleler Linien auf gemeinsamer Kante
+const LINE_SPACING = 15; // Pixelabstand paralleler Linien auf gemeinsamer Kante
+const LINE_WIDTH = 11; // Breite einer Fahrbahnstreifen-Linie
+const END_CAP_LENGTH = 30; // Länge des quer stehenden Endstücks an Linien-Endstationen
 
 function edgeKey(aId, bId) { return aId < bId ? `${aId}|${bId}` : `${bId}|${aId}`; }
 
@@ -107,6 +109,7 @@ export function draw(ctx, state, ui) {
 
   const edgeLines = buildOffsetTable(state.lines);
   drawLines(ctx, state, edgeLines);
+  drawLineEndCaps(ctx, state, edgeLines);
   if (ui.draft && ui.draft.stationIds.length > 0) drawDraft(ctx, state, ui.draft, ui.pointer);
   drawTrains(ctx, state, edgeLines);
   drawStations(ctx, state, ui);
@@ -137,7 +140,7 @@ function drawLines(ctx, state, edgeLines) {
   ctx.lineJoin = "round";
   for (const line of state.lines) {
     ctx.strokeStyle = line.color;
-    ctx.lineWidth = 6;
+    ctx.lineWidth = LINE_WIDTH;
     ctx.beginPath();
     for (let i = 0; i < line.stations.length; i++) {
       const st = state.getStationById(line.stations[i]);
@@ -163,6 +166,46 @@ function drawLines(ctx, state, edgeLines) {
     ctx.stroke();
   }
   ctx.restore();
+}
+
+// Zeichnet an jeder Linien-Endstation ein quer zur Fahrtrichtung stehendes
+// Endstück ("Prellbock"), wie es auf klassischen U-Bahn-Plänen üblich ist.
+function drawLineEndCaps(ctx, state, edgeLines) {
+  ctx.save();
+  ctx.lineCap = "round";
+  for (const line of state.lines) {
+    if (line.stations.length < 2) continue;
+    const n = line.stations.length;
+    drawEndCap(ctx, state, edgeLines, line, 0, 1);
+    drawEndCap(ctx, state, edgeLines, line, n - 1, n - 2);
+  }
+  ctx.restore();
+}
+
+function drawEndCap(ctx, state, edgeLines, line, endIdx, neighborIdx) {
+  const endSt = state.getStationById(line.stations[endIdx]);
+  const neighborSt = state.getStationById(line.stations[neighborIdx]);
+  if (!endSt || !neighborSt) return;
+
+  const off = offsetForSegment(edgeLines, endSt.id, neighborSt.id, line.id);
+  // Richtung entlang der Linie so wählen, dass sie zum selben Offset-Vorzeichen
+  // führt, das drawLines() für diese Endstation verwendet hat.
+  const dir = endIdx === 0
+    ? perpOffset(endSt.x, endSt.y, neighborSt.x, neighborSt.y, off)
+    : perpOffset(neighborSt.x, neighborSt.y, endSt.x, endSt.y, off);
+  const px = endSt.x + dir.x;
+  const py = endSt.y + dir.y;
+
+  const dx = neighborSt.x - endSt.x, dy = neighborSt.y - endSt.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const perpX = -dy / len, perpY = dx / len; // senkrecht zur Fahrtrichtung
+
+  ctx.strokeStyle = line.color;
+  ctx.lineWidth = LINE_WIDTH;
+  ctx.beginPath();
+  ctx.moveTo(px - perpX * END_CAP_LENGTH / 2, py - perpY * END_CAP_LENGTH / 2);
+  ctx.lineTo(px + perpX * END_CAP_LENGTH / 2, py + perpY * END_CAP_LENGTH / 2);
+  ctx.stroke();
 }
 
 function drawDraft(ctx, state, draft, pointer) {
