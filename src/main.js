@@ -1,6 +1,7 @@
 import { GameState } from "./simulation.js";
 import { draw } from "./render.js";
 import { attachInput } from "./input.js";
+import { clampCamera } from "./camera.js";
 import {
   initStartOverlay, initSpeedControls, showToast, updateHud,
   renderLineSelector, showUpgradeOverlay, showGameOver, hideGameOver,
@@ -13,7 +14,7 @@ const canvas = document.getElementById("game-canvas");
 const ctx = canvas.getContext("2d");
 
 let state = null;
-let ui = { draft: null, pointer: null, selectedLineId: null, zoom: 1, offsetX: 0, offsetY: 0 };
+let ui = { draft: null, pointer: null, selectedLineId: null, zoom: 1, camera: { x: 0, y: 0 } };
 let viewport = { width: window.innerWidth, height: window.innerHeight };
 let running = false;
 let lastTime = null;
@@ -28,13 +29,21 @@ function resizeCanvas() {
   canvas.width = Math.round(viewport.width * dpr);
   canvas.height = Math.round(viewport.height * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (state) {
+    clampCamera(ui.camera, ui.zoom, state.width, state.height, viewport.width, viewport.height);
+  }
 }
 
 function newGame() {
   const worldW = viewport.width * WORLD_SCALE;
   const worldH = viewport.height * WORLD_SCALE;
   state = new GameState(worldW, worldH, Math.random);
-  ui = { draft: null, pointer: null, selectedLineId: null, zoom: 1, offsetX: 0, offsetY: 0 };
+  const fitZoom = Math.min(viewport.width / worldW, viewport.height / worldH);
+  ui = {
+    draft: null, pointer: null, selectedLineId: null,
+    zoom: fitZoom, camera: { x: 0, y: 0 },
+  };
+  clampCamera(ui.camera, ui.zoom, worldW, worldH, viewport.width, viewport.height);
   upgradeShown = false;
   gameOverHandled = false;
   hideGameOver();

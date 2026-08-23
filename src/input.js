@@ -1,4 +1,9 @@
+import { clampCamera, zoomAt } from "./camera.js";
+
 const SCREEN_HIT_RADIUS = 34; // großzügige Trefferzone in Bildschirmpixeln (unabhängig vom Zoom)
+const ZOOM_OUT_FACTOR = 0.5; // wie weit über die "ganze Karte sichtbar"-Stufe hinaus rausgezoomt werden darf
+const ZOOM_IN_FACTOR = 3.5; // wie weit für Details reingezoomt werden darf
+const WHEEL_SENSITIVITY = 0.0015;
 
 function hitTestStation(state, x, y, worldHitRadius) {
   let best = null;
@@ -15,21 +20,27 @@ function findLineWithEndpoint(state, stationId) {
 }
 
 export function attachInput(canvas, state, ui, hooks) {
-  let activePointerId = null;
+  let draftPointerId = null;
+  const panPointers = new Map(); // pointerId -> letzte Bildschirmposition (Pan / Pinch-Zoom)
+  let lastPinchDist = null;
 
-  function toWorldCoords(evt) {
-    const rect = canvas.getBoundingClientRect();
-    const zoom = ui.zoom || 1;
-    const screenX = evt.clientX - rect.left;
-    const screenY = evt.clientY - rect.top;
-    return {
-      x: (screenX - (ui.offsetX || 0)) / zoom,
-      y: (screenY - (ui.offsetY || 0)) / zoom,
-    };
+  function rect() { return canvas.getBoundingClientRect(); }
+
+  function screenPoint(evt, r) {
+    return { x: evt.clientX - r.left, y: evt.clientY - r.top };
+  }
+
+  function toWorldCoords(screen) {
+    return { x: screen.x / ui.zoom + ui.camera.x, y: screen.y / ui.zoom + ui.camera.y };
   }
 
   function worldHitRadius() {
-    return SCREEN_HIT_RADIUS / (ui.zoom || 1);
+    return SCREEN_HIT_RADIUS / ui.zoom;
+  }
+
+  function zoomBounds(r) {
+    const fitZoom = Math.min(r.width / state.width, r.height / state.height);
+    return { min: fitZoom * ZOOM_OUT_FACTOR, max: fitZoom * ZOOM_IN_FACTOR };
   }
 
   function startDraftFrom(station) {
@@ -93,38 +104,96 @@ export function attachInput(canvas, state, ui, hooks) {
   }
 
   function onPointerDown(evt) {
-    if (activePointerId !== null) return;
-    const world = toWorldCoords(evt);
-    const station = hitTestStation(state, world.x, world.y, worldHitRadius());
-    if (!station) return;
+    const r = rect();
+    const screen = screenPoint(evt, r);
+
+    if (draftPointerId === null && !panPointers.has(evt.pointerId)) {
+      const world = toWorldCoords(screen);
+      const station = hitTestStation(state, world.x, world.y, worldHitRadius());
+      if (station) {
+        evt.preventDefault();
+        draftPointerId = evt.pointerId;
+        canvas.setPointerCapture(draftPointerId);
+        ui.pointer = world;
+        startDraftFrom(station);
+        return;
+      }
+    }
+
+    // Freie Fläche: zum Verschieben/Zoomen der Karte verwenden
     evt.preventDefault();
-    activePointerId = evt.pointerId;
-    canvas.setPointerCapture(activePointerId);
-    ui.pointer = world;
-    startDraftFrom(station);
+    canvas.setPointerCapture(evt.pointerId);
+    panPointers.set(evt.pointerId, screen);
+    if (panPointers.size !== 2) lastPinchDist = null;
   }
 
   function onPointerMove(evt) {
-    const world = toWorldCoords(evt);
-    if (activePointerId === null || evt.pointerId !== activePointerId) return;
+    if (evt.pointerId === draftPointerId) {
+      evt.preventDefault();
+      const r = rect();
+      const world = toWorldCoords(screenPoint(evt, r));
+      ui.pointer = world;
+      const station = hitTestStation(state, world.x, world.y, worldHitRadius());
+      if (station) extendDraftTo(station);
+      return;
+    }
+
+    if (!panPointers.has(evt.pointerId)) return;
     evt.preventDefault();
-    ui.pointer = world;
-    const station = hitTestStation(state, world.x, world.y, worldHitRadius());
-    if (station) extendDraftTo(station);
+    const r = rect();
+    const screen = screenPoint(evt, r);
+    const prev = panPointers.get(evt.pointerId);
+    panPointers.set(evt.pointerId, screen);
+
+    if (panPointers.size === 1) {
+      const dx = screen.x - prev.x, dy = screen.y - prev.y;
+      ui.camera.x -= dx / ui.zoom;
+      ui.camera.y -= dy / ui.zoom;
+      clampCamera(ui.camera, ui.zoom, state.width, state.height, r.width, r.height);
+    } else if (panPointers.size === 2) {
+      const pts = Array.from(panPointers.values());
+      const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      const midX = (pts[0].x + pts[1].x) / 2;
+      const midY = (pts[0].y + pts[1].y) / 2;
+      if (lastPinchDist != null && lastPinchDist > 1) {
+        const scale = dist / lastPinchDist;
+        const { min, max } = zoomBounds(r);
+        zoomAt(ui, midX, midY, ui.zoom * scale, min, max, state.width, state.height, r.width, r.height);
+      }
+      lastPinchDist = dist;
+    }
   }
 
   function onPointerUp(evt) {
-    if (activePointerId === null || evt.pointerId !== activePointerId) return;
+    if (evt.pointerId === draftPointerId) {
+      evt.preventDefault();
+      try { canvas.releasePointerCapture(draftPointerId); } catch (e) { /* noop */ }
+      draftPointerId = null;
+      finishDraft();
+      ui.pointer = null;
+      return;
+    }
+    if (panPointers.has(evt.pointerId)) {
+      evt.preventDefault();
+      try { canvas.releasePointerCapture(evt.pointerId); } catch (e) { /* noop */ }
+      panPointers.delete(evt.pointerId);
+      if (panPointers.size !== 2) lastPinchDist = null;
+    }
+  }
+
+  function onWheel(evt) {
     evt.preventDefault();
-    try { canvas.releasePointerCapture(activePointerId); } catch (e) { /* noop */ }
-    activePointerId = null;
-    finishDraft();
-    ui.pointer = null;
+    const r = rect();
+    const screen = screenPoint(evt, r);
+    const factor = Math.exp(-evt.deltaY * WHEEL_SENSITIVITY);
+    const { min, max } = zoomBounds(r);
+    zoomAt(ui, screen.x, screen.y, ui.zoom * factor, min, max, state.width, state.height, r.width, r.height);
   }
 
   canvas.addEventListener("pointerdown", onPointerDown, { passive: false });
   canvas.addEventListener("pointermove", onPointerMove, { passive: false });
   canvas.addEventListener("pointerup", onPointerUp, { passive: false });
   canvas.addEventListener("pointercancel", onPointerUp, { passive: false });
+  canvas.addEventListener("wheel", onWheel, { passive: false });
   canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 }
