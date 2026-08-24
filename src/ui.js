@@ -43,15 +43,14 @@ export function initStartOverlay(onStart) {
   }, { once: false });
 }
 
-export function initSpeedControls(onSpeedChange) {
-  const buttons = document.querySelectorAll(".speed-btn");
-  buttons.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      buttons.forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      onSpeedChange(Number(btn.dataset.speed));
-    });
-  });
+export function initPauseButton(onClick) {
+  el("btn-pause").addEventListener("click", onClick);
+}
+
+export function setPauseButtonState(paused) {
+  const btn = el("btn-pause");
+  btn.textContent = paused ? "▶" : "⏸";
+  btn.classList.toggle("active", paused);
 }
 
 let toastTimer = null;

@@ -3,7 +3,7 @@ import { draw } from "./render.js";
 import { attachInput } from "./input.js";
 import { clampCamera } from "./camera.js";
 import {
-  initStartOverlay, initSpeedControls, showToast, updateHud,
+  initStartOverlay, initPauseButton, setPauseButtonState, showToast, updateHud,
   renderLineSelector, showUpgradeOverlay, showGameOver, hideGameOver, showDeleteConfirm,
 } from "./ui.js";
 import { saveHighscoreIfBetter } from "./save.js";
@@ -47,6 +47,7 @@ function newGame() {
   upgradeShown = false;
   gameOverHandled = false;
   hideGameOver();
+  setPauseButtonState(false);
   renderLineSelector(state, ui, onSelectLine, onRequestDeleteLine);
   attachInput(canvas, state, ui, {
     onToast: showToast,
@@ -112,10 +113,10 @@ window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
 initStartOverlay(start);
-initSpeedControls((speed) => {
+initPauseButton(() => {
   if (!state) return;
-  state.speed = speed;
-  state.paused = speed === 0;
+  state.paused = !state.paused;
+  setPauseButtonState(state.paused);
 });
 
 document.getElementById("btn-restart").addEventListener("click", () => {

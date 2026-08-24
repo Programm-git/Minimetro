@@ -145,12 +145,11 @@ html, body {
 
 .speed-btn {
   border: none;
-  background: #ffffff;
-  color: var(--ink-soft);
-  font-weight: 700;
-  font-size: 13px;
-  width: 38px;
-  height: 38px;
+  width: 46px;
+  height: 46px;
+  font-size: 16px;
+  background: #d9dcd3;
+  color: var(--ink);
   border-radius: 50%;
   cursor: pointer;
   display: flex;
@@ -161,14 +160,6 @@ html, body {
 }
 .speed-btn:active { transform: scale(0.92); }
 .speed-btn.active { background: var(--ink); color: #fff; }
-.speed-btn[data-speed="0"] {
-  width: 46px;
-  height: 46px;
-  font-size: 16px;
-  background: #d9dcd3;
-  color: var(--ink);
-}
-.speed-btn[data-speed="0"].active { background: var(--ink); color: #fff; }
 
 #toast {
   position: absolute;

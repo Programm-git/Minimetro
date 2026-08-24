@@ -316,8 +316,8 @@ export class GameState {
   _updatePassengerSpawning(dt) {
     this.passengerSpawnTimer -= dt;
     if (this.passengerSpawnTimer > 0) return;
-    const f = this._difficultyFactor();
-    const interval = PASSENGER_SPAWN_INTERVAL_START - (PASSENGER_SPAWN_INTERVAL_START - PASSENGER_SPAWN_INTERVAL_MIN) * f;
+    // Verdoppelt sich mit jeder abgeschlossenen Woche.
+    const interval = Math.max(PASSENGER_SPAWN_INTERVAL_MIN, PASSENGER_SPAWN_INTERVAL_START / Math.pow(2, this.week));
     this.passengerSpawnTimer = interval;
 
     if (this.stations.length === 0) return;
