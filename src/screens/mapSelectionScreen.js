@@ -2,7 +2,7 @@ import { MAP_CONFIGS, CITY_ORDER } from "../maps/mapConfigs.js";
 import { drawCityPreview } from "../maps/cityPreview.js";
 import { getCityHighScore } from "../storage/progressStorage.js";
 
-const el = (id) => document.getElementById(id);
+const mapEl = (id) => document.getElementById(id);
 const SWIPE_THRESHOLD = 45;
 
 let selectedIndex = 0;
@@ -16,13 +16,13 @@ function formatHighScore(mapId) {
 }
 
 function recomputeOffsets() {
-  const carousel = el("city-carousel");
+  const carousel = mapEl("city-carousel");
   const containerWidth = carousel.clientWidth;
   offsets = tiles.map((tile) => containerWidth / 2 - (tile.offsetLeft + tile.offsetWidth / 2));
 }
 
 function applyTransform(extraX = 0) {
-  const track = el("city-track");
+  const track = mapEl("city-track");
   const offset = (offsets[selectedIndex] || 0) + extraX;
   track.style.transform = `translateX(${offset}px)`;
 }
@@ -31,8 +31,8 @@ function updateSelectionUI() {
   tiles.forEach((tile, i) => tile.classList.toggle("selected", i === selectedIndex));
   document.querySelectorAll(".city-dot").forEach((dot, i) => dot.classList.toggle("active", i === selectedIndex));
   const config = MAP_CONFIGS[CITY_ORDER[selectedIndex]];
-  el("city-selected-name").textContent = config.name.toUpperCase();
-  el("city-selected-score").textContent = formatHighScore(config.id);
+  mapEl("city-selected-name").textContent = config.name.toUpperCase();
+  mapEl("city-selected-score").textContent = formatHighScore(config.id);
   applyTransform();
 }
 
@@ -42,8 +42,8 @@ function setSelectedIndex(index) {
 }
 
 function buildTiles() {
-  const track = el("city-track");
-  const dots = el("city-dots");
+  const track = mapEl("city-track");
+  const dots = mapEl("city-dots");
   track.innerHTML = "";
   dots.innerHTML = "";
   tiles = [];
@@ -69,7 +69,7 @@ function buildTiles() {
 }
 
 function attachGestures() {
-  const carousel = el("city-carousel");
+  const carousel = mapEl("city-carousel");
   let dragging = false;
   let startX = 0;
   let dragDeltaX = 0;
@@ -80,7 +80,7 @@ function attachGestures() {
     pointerId = evt.pointerId;
     startX = evt.clientX;
     dragDeltaX = 0;
-    el("city-track").classList.add("dragging");
+    mapEl("city-track").classList.add("dragging");
     carousel.setPointerCapture(pointerId);
   });
 
@@ -93,7 +93,7 @@ function attachGestures() {
   function endDrag(evt) {
     if (!dragging || evt.pointerId !== pointerId) return;
     dragging = false;
-    el("city-track").classList.remove("dragging");
+    mapEl("city-track").classList.remove("dragging");
     if (dragDeltaX > SWIPE_THRESHOLD) setSelectedIndex(selectedIndex - 1);
     else if (dragDeltaX < -SWIPE_THRESHOLD) setSelectedIndex(selectedIndex + 1);
     else updateSelectionUI();
@@ -109,7 +109,7 @@ function attachGestures() {
   }, { passive: false });
 
   window.addEventListener("keydown", (evt) => {
-    if (!el("screen-map-selection").classList.contains("active")) return;
+    if (!mapEl("screen-map-selection").classList.contains("active")) return;
     if (evt.key === "ArrowLeft") setSelectedIndex(selectedIndex - 1);
     else if (evt.key === "ArrowRight") setSelectedIndex(selectedIndex + 1);
   });
@@ -121,10 +121,10 @@ export function initMapSelection({ onPlay, onBack }) {
   onPlayCallback = onPlay;
   buildTiles();
   attachGestures();
-  el("btn-city-play").addEventListener("click", () => {
+  mapEl("btn-city-play").addEventListener("click", () => {
     onPlayCallback(CITY_ORDER[selectedIndex]);
   });
-  el("btn-map-back").addEventListener("click", onBack);
+  mapEl("btn-map-back").addEventListener("click", onBack);
 }
 
 // Beim Anzeigen des Screens aufrufen (Layout muss bereits sichtbar sein,

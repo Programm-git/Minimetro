@@ -1,6 +1,6 @@
 import { MAP_CONFIGS } from "../maps/mapConfigs.js";
 
-const el = (id) => document.getElementById(id);
+const goEl = (id) => document.getElementById(id);
 let callbacks = {};
 
 export function initGameOverScreen({ onRetry, onSelectCity, onMainMenu }) {
@@ -21,10 +21,10 @@ export function showGameOver(session, stats) {
   const isDaily = session.mode === "DAILY";
   const config = MAP_CONFIGS[session.mapId];
 
-  el("gameover-eyebrow").textContent = isDaily
+  goEl("gameover-eyebrow").textContent = isDaily
     ? `DAILY CHALLENGE · ${session.dateLabel}`
     : (config ? config.name.toUpperCase() : "");
-  el("gameover-headline").textContent = `${stats.passengers.toLocaleString("en-US")} PASSENGERS`;
+  goEl("gameover-headline").textContent = `${stats.passengers.toLocaleString("en-US")} PASSENGERS`;
 
   let subline = "";
   if (isDaily) {
@@ -32,9 +32,9 @@ export function showGameOver(session, stats) {
   } else {
     subline = stats.isNewHighScore ? "NEW HIGH SCORE!" : "Game Over";
   }
-  el("gameover-subline").textContent = subline;
+  goEl("gameover-subline").textContent = subline;
 
-  const grid = el("gameover-stats");
+  const grid = goEl("gameover-stats");
   const items = [
     ["Spielzeit", `Tag ${stats.day}`],
     ["Max. wartend", stats.maxWaiting],
@@ -44,7 +44,7 @@ export function showGameOver(session, stats) {
     <div class="stat-box"><div class="label">${label}</div><div class="value">${value}</div></div>
   `).join("");
 
-  const actions = el("gameover-actions");
+  const actions = goEl("gameover-actions");
   actions.innerHTML = "";
   actions.appendChild(actionButton("RETRY", () => callbacks.onRetry(session)));
   if (!isDaily) actions.appendChild(actionButton("SELECT CITY", callbacks.onSelectCity, "btn-secondary"));

@@ -15,9 +15,9 @@ const LINES = [
   { color: "#e0453c", stations: [1, 3] },
 ];
 
-const TRAIN_SPEED = 0.09; // Anteil der Linienlänge pro Sekunde
+const MENU_TRAIN_SPEED = 0.09; // Anteil der Linienlänge pro Sekunde
 
-function drawShape(ctx, shape, x, y, r) {
+function drawMenuShape(ctx, shape, x, y, r) {
   ctx.beginPath();
   switch (shape) {
     case "circle": ctx.arc(x, y, r, 0, Math.PI * 2); break;
@@ -111,7 +111,7 @@ export function startMenuBackground(canvas) {
 
     // Ein Zug pendelt sanft auf der ersten Linie.
     const path0 = paths[0];
-    const cycle = (Math.sin(t * TRAIN_SPEED * Math.PI * 2) + 1) / 2;
+    const cycle = (Math.sin(t * MENU_TRAIN_SPEED * Math.PI * 2) + 1) / 2;
     const along = pointAlongPath(path0, cycle);
     ctx.save();
     ctx.globalAlpha = 0.55;
@@ -131,7 +131,7 @@ export function startMenuBackground(canvas) {
     for (const line of LINES) {
       for (const idx of line.stations) {
         const s = world(idx);
-        drawShape(ctx, s.shape, s.x, s.y, r);
+        drawMenuShape(ctx, s.shape, s.x, s.y, r);
         ctx.fillStyle = "#eef0e9";
         ctx.fill();
         ctx.strokeStyle = "#5b6167";
