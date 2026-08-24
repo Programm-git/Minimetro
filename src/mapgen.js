@@ -6,7 +6,8 @@ import {
 // --- Fluss -----------------------------------------------------------------
 
 // Erzeugt eine geschwungene Flusslinie quer durch die Karte (Weltkoordinaten).
-export function generateRiver(width, height, rng) {
+// `widthMultiplier` erlaubt Karten mit einem breiteren, dominanteren Fluss (z.B. London).
+export function generateRiver(width, height, rng, widthMultiplier = 1) {
   const rand = rng || Math.random;
   const points = [];
   const segments = 6;
@@ -23,7 +24,16 @@ export function generateRiver(width, height, rng) {
       points.push({ x, y });
     }
   }
-  return { points, halfWidth: RIVER_HALF_WIDTH };
+  return { points, halfWidth: RIVER_HALF_WIDTH * widthMultiplier };
+}
+
+// Erzeugt mehrere, unabhängig verlaufende Flüsse (für Karten mit riverCount > 1).
+export function generateRivers(width, height, rng, count = 1, widthMultiplier = 1) {
+  const rivers = [];
+  for (let i = 0; i < Math.max(1, count); i++) {
+    rivers.push(generateRiver(width, height, rng, widthMultiplier));
+  }
+  return rivers;
 }
 
 function distToSegment(p, a, b) {
@@ -44,6 +54,11 @@ export function isInWater(x, y, river, margin = 0) {
   return false;
 }
 
+export function isInAnyWater(x, y, rivers, margin = 0) {
+  if (!rivers) return false;
+  return rivers.some((river) => isInWater(x, y, river, margin));
+}
+
 // Prüft, ob die Gerade zwischen zwei Punkten den Fluss kreuzt (grobe Abtastung).
 export function segmentCrossesWater(a, b, river) {
   if (!river) return false;
@@ -55,6 +70,11 @@ export function segmentCrossesWater(a, b, river) {
     if (isInWater(x, y, river)) return true;
   }
   return false;
+}
+
+export function segmentCrossesAnyWater(a, b, rivers) {
+  if (!rivers) return false;
+  return rivers.some((river) => segmentCrossesWater(a, b, river));
 }
 
 // --- Stationen ---------------------------------------------------------------
@@ -72,13 +92,13 @@ export function pickShape(day, rng) {
 }
 
 // Sucht eine gültige, freie Position für eine neue Station.
-export function findStationPosition(existingStations, river, width, height, rng) {
+export function findStationPosition(existingStations, rivers, width, height, rng) {
   const rand = rng || Math.random;
   const maxAttempts = 220;
   for (let i = 0; i < maxAttempts; i++) {
     const x = WORLD_PADDING + rand() * (width - WORLD_PADDING * 2);
     const y = WORLD_PADDING + rand() * (height - WORLD_PADDING * 2);
-    if (isInWater(x, y, river, 18)) continue;
+    if (isInAnyWater(x, y, rivers, 18)) continue;
     let ok = true;
     for (const s of existingStations) {
       if (Math.hypot(s.x - x, s.y - y) < MIN_STATION_DIST) { ok = false; break; }

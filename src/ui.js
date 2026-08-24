@@ -1,6 +1,6 @@
 import { DAY_SECONDS } from "./constants.js";
 import { UPGRADE_DEFS } from "./simulation.js";
-import { loadHighscore } from "./save.js";
+import { loadSettings, saveSettings, resetAllProgress } from "./storage/progressStorage.js";
 
 const el = (id) => document.getElementById(id);
 const CLOCK_R = 17;
@@ -31,16 +31,6 @@ function updateWeekClock(state) {
   const progress = el("clock-progress");
   progress.style.strokeDasharray = String(CLOCK_CIRC);
   progress.style.strokeDashoffset = String(CLOCK_CIRC * (1 - Math.min(1, fraction)));
-}
-
-export function initStartOverlay(onStart) {
-  const box = el("highscore-box");
-  const hs = loadHighscore();
-  box.textContent = hs ? `Highscore: ${hs.passengers} Fahrgäste · ${hs.days} Tage` : "Noch kein Highscore.";
-  el("btn-start").addEventListener("click", () => {
-    el("overlay-start").classList.add("hidden");
-    onStart();
-  }, { once: false });
 }
 
 export function initPauseButton(onClick) {
@@ -138,21 +128,36 @@ export function showUpgradeOverlay(state, choiceIds, onPick) {
   overlay.classList.remove("hidden");
 }
 
-export function showGameOver(state) {
-  el("gameover-reason").textContent = state.gameOverReason;
-  const grid = el("gameover-stats");
-  const items = [
-    ["Fahrgäste befördert", state.transportedCount],
-    ["Spielzeit", `Tag ${state.day}`],
-    ["Max. wartend", state.maxWaitingSeen],
-    ["Linien gebaut", state.lines.length],
-  ];
-  grid.innerHTML = items.map(([label, value]) => `
-    <div class="stat-box"><div class="label">${label}</div><div class="value">${value}</div></div>
-  `).join("");
-  el("overlay-gameover").classList.remove("hidden");
+// --- Einstellungen ------------------------------------------------------------
+
+function updateSoundButtonLabel(btn, on) {
+  btn.textContent = on ? "An" : "Aus";
+  btn.classList.toggle("off", !on);
 }
 
-export function hideGameOver() {
-  el("overlay-gameover").classList.add("hidden");
+export function initSettings({ onReset }) {
+  const soundBtn = el("btn-toggle-sound");
+  updateSoundButtonLabel(soundBtn, loadSettings().soundOn);
+
+  soundBtn.addEventListener("click", () => {
+    const settings = loadSettings();
+    settings.soundOn = !settings.soundOn;
+    saveSettings(settings);
+    updateSoundButtonLabel(soundBtn, settings.soundOn);
+  });
+
+  el("btn-reset-progress").addEventListener("click", () => {
+    resetAllProgress();
+    if (onReset) onReset();
+  });
+
+  el("btn-settings-close").addEventListener("click", closeSettings);
+}
+
+export function openSettings() {
+  el("overlay-settings").classList.remove("hidden");
+}
+
+export function closeSettings() {
+  el("overlay-settings").classList.add("hidden");
 }

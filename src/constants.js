@@ -1,5 +1,7 @@
 // Zentrale Spielkonstanten. Hier lässt sich die gesamte Balance justieren.
 
+export const GAME_TITLE = "METRO NETWORK";
+
 export const SHAPES = ["circle", "triangle", "square", "diamond", "star", "cross"];
 
 // Wann eine Formklasse erstmals als Station auftauchen kann (Spieltag).

@@ -3,10 +3,19 @@ import { draw } from "./render.js";
 import { attachInput } from "./input.js";
 import { clampCamera } from "./camera.js";
 import {
-  initStartOverlay, initPauseButton, setPauseButtonState, showToast, updateHud,
-  renderLineSelector, showUpgradeOverlay, showGameOver, hideGameOver, showDeleteConfirm,
+  initPauseButton, setPauseButtonState, showToast, updateHud,
+  renderLineSelector, showUpgradeOverlay, showDeleteConfirm,
+  initSettings, openSettings,
 } from "./ui.js";
-import { saveHighscoreIfBetter } from "./save.js";
+import {
+  saveCityHighScoreIfBetter, saveDailyHighScoreIfBetter, getDailyHighScore,
+} from "./storage/progressStorage.js";
+import { createSeededRandom, todaySeed } from "./seededRandom.js";
+import { getMapConfig, buildDailyConfig } from "./maps/mapConfigs.js";
+import { ScreenManager } from "./app/ScreenManager.js";
+import { initMainMenu, updateDailyMenuInfo } from "./screens/mainMenuScreen.js";
+import { initMapSelection, onMapSelectionShown } from "./screens/mapSelectionScreen.js";
+import { initGameOverScreen, showGameOver } from "./screens/gameOverScreen.js";
 
 const WORLD_SCALE = 2; // Die Karte ist mindestens doppelt so groß wie der sichtbare Ausschnitt
 
@@ -21,6 +30,15 @@ let lastTime = null;
 let hudAccumulator = 0;
 let upgradeShown = false;
 let gameOverHandled = false;
+let detachInput = null;
+let currentSession = null; // { mode: "NORMAL" | "DAILY", mapId, dateSeed?, dateLabel? }
+
+const screenManager = new ScreenManager({
+  "main-menu": document.getElementById("screen-main-menu"),
+  "map-selection": document.getElementById("screen-map-selection"),
+  "game": document.getElementById("screen-game"),
+  "game-over": document.getElementById("screen-game-over"),
+});
 
 function resizeCanvas() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -34,25 +52,63 @@ function resizeCanvas() {
   }
 }
 
-function newGame() {
+// --- Daily Challenge Hilfsfunktionen ------------------------------------------
+
+function formatDateLabel(date) {
+  const weekday = date.toLocaleDateString("en-US", { weekday: "long" });
+  const day = date.getDate();
+  const month = date.toLocaleDateString("en-US", { month: "long" });
+  return `${weekday} · ${day} ${month}`;
+}
+
+function refreshDailyMenuInfo() {
+  const seed = todaySeed();
+  const best = getDailyHighScore(seed);
+  updateDailyMenuInfo({
+    dateLabel: formatDateLabel(new Date()),
+    bestText: best === null ? "Not played today" : `Today's Best: ${best.toLocaleString("en-US")}`,
+  });
+}
+
+// --- Spiel starten -------------------------------------------------------------
+
+function startGame(session) {
+  currentSession = session;
+
+  let rng = Math.random;
+  let config;
+  if (session.mode === "DAILY") {
+    rng = createSeededRandom(session.dateSeed);
+    config = buildDailyConfig(rng);
+  } else {
+    config = getMapConfig(session.mapId);
+  }
+
   const worldW = viewport.width * WORLD_SCALE;
   const worldH = viewport.height * WORLD_SCALE;
-  state = new GameState(worldW, worldH, Math.random);
+  state = new GameState(worldW, worldH, rng, config);
   const fitZoom = Math.min(viewport.width / worldW, viewport.height / worldH);
   ui = {
     draft: null, pointer: null, selectedLineId: null,
     zoom: fitZoom, camera: { x: 0, y: 0 },
   };
   clampCamera(ui.camera, ui.zoom, worldW, worldH, viewport.width, viewport.height);
+
   upgradeShown = false;
   gameOverHandled = false;
-  hideGameOver();
   setPauseButtonState(false);
   renderLineSelector(state, ui, onSelectLine, onRequestDeleteLine);
-  attachInput(canvas, state, ui, {
+
+  if (detachInput) detachInput();
+  detachInput = attachInput(canvas, state, ui, {
     onToast: showToast,
     onLinesChanged: () => renderLineSelector(state, ui, onSelectLine, onRequestDeleteLine),
   });
+
+  screenManager.show("game");
+  running = true;
+  lastTime = null;
+  requestAnimationFrame(loop);
 }
 
 function onSelectLine(lineId) {
@@ -66,6 +122,26 @@ function onRequestDeleteLine(lineId) {
     if (ui.selectedLineId === lineId) ui.selectedLineId = null;
     renderLineSelector(state, ui, onSelectLine, onRequestDeleteLine);
   });
+}
+
+function handleGameOver() {
+  gameOverHandled = true;
+  running = false;
+
+  const passengers = state.transportedCount;
+  const isDaily = currentSession.mode === "DAILY";
+  const isNewHighScore = !isDaily && saveCityHighScoreIfBetter(currentSession.mapId, passengers);
+  const isNewDailyBest = isDaily && saveDailyHighScoreIfBetter(currentSession.dateSeed, passengers);
+
+  showGameOver(currentSession, {
+    passengers,
+    day: state.day,
+    maxWaiting: state.maxWaitingSeen,
+    lines: state.lines.length,
+    isNewHighScore,
+    isNewDailyBest,
+  });
+  screenManager.show("game-over");
 }
 
 function loop(timestamp) {
@@ -87,9 +163,7 @@ function loop(timestamp) {
   }
 
   if (state.gameOver && !gameOverHandled) {
-    gameOverHandled = true;
-    saveHighscoreIfBetter({ passengers: state.transportedCount, days: state.day });
-    showGameOver(state);
+    handleGameOver();
   }
 
   hudAccumulator += dt;
@@ -99,26 +173,49 @@ function loop(timestamp) {
   }
 
   draw(ctx, state, ui, viewport);
-  requestAnimationFrame(loop);
+  if (running) requestAnimationFrame(loop);
 }
 
-function start() {
-  newGame();
-  running = true;
-  lastTime = null;
-  requestAnimationFrame(loop);
+// --- Navigation zwischen den Screens --------------------------------------------
+
+function goToMainMenu() {
+  refreshDailyMenuInfo();
+  screenManager.show("main-menu");
+}
+
+function goToMapSelection() {
+  screenManager.show("map-selection");
+  onMapSelectionShown();
 }
 
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
-initStartOverlay(start);
+initMainMenu({
+  onPlay: goToMapSelection,
+  onDaily: () => startGame({ mode: "DAILY", mapId: "daily", dateSeed: todaySeed(), dateLabel: formatDateLabel(new Date()) }),
+  onOpenSettings: openSettings,
+});
+
+initMapSelection({
+  onPlay: (mapId) => startGame({ mode: "NORMAL", mapId }),
+  onBack: goToMainMenu,
+});
+
+initGameOverScreen({
+  onRetry: (session) => startGame(session),
+  onSelectCity: goToMapSelection,
+  onMainMenu: goToMainMenu,
+});
+
+initSettings({
+  onReset: () => { refreshDailyMenuInfo(); onMapSelectionShown(); },
+});
+
 initPauseButton(() => {
   if (!state) return;
   state.paused = !state.paused;
   setPauseButtonState(state.paused);
 });
 
-document.getElementById("btn-restart").addEventListener("click", () => {
-  start();
-});
+goToMainMenu();

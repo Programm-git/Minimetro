@@ -231,12 +231,6 @@ html, body {
 .btn-danger { background: var(--danger); }
 .btn-secondary { background: #e4e6df; color: var(--ink); }
 
-#highscore-box {
-  font-size: 13px;
-  color: var(--ink-soft);
-  margin-bottom: 6px;
-}
-
 .choice-row {
   display: flex;
   gap: 14px;
@@ -277,4 +271,287 @@ html, body {
 @media (max-width: 520px) {
   .overlay-card { padding: 26px 20px; }
   .hud-stat { font-size: 12px; padding: 5px 10px; }
+}
+
+/* ===================== App-Screens ===================== */
+
+.app-screen {
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.28s ease;
+}
+.app-screen.active { opacity: 1; pointer-events: auto; }
+
+/* screen-game hosts the existing canvas/HUD, unstyled beyond being a screen */
+#screen-game { background: var(--bg); }
+
+/* ===================== Hauptmenü ===================== */
+
+.menu-bg-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.menu-content {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 34px;
+  padding: 24px;
+  text-align: center;
+}
+
+.menu-title {
+  margin: 0;
+  font-size: clamp(30px, 6vw, 46px);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+}
+
+.menu-links {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.menu-link {
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  color: var(--ink-soft);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  padding: 10px 6px;
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+.menu-link:hover, .menu-link:active { color: var(--ink); transform: translateY(-1px); }
+.menu-link-arrow { display: inline-block; margin-right: 4px; }
+
+.menu-link-primary {
+  font-size: 26px;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: #3b6fd4;
+  text-decoration-thickness: 3px;
+  text-underline-offset: 6px;
+}
+
+.menu-daily-info {
+  display: flex;
+  flex-direction: column;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  letter-spacing: 0.02em;
+  margin-top: 2px;
+}
+#daily-best { font-weight: 700; color: #3d9a5c; }
+
+.menu-settings-btn {
+  position: absolute;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  border: none;
+  background: rgba(255,255,255,0.7);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  font-size: 18px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.menu-settings-btn:active { transform: translateX(-50%) scale(0.92); }
+
+/* ===================== Kartenauswahl ===================== */
+
+.back-btn {
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  left: 16px;
+  z-index: 2;
+  border: none;
+  background: rgba(255,255,255,0.85);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  font-size: 20px;
+  color: var(--ink);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.back-btn:active { transform: scale(0.92); }
+
+.screen-heading {
+  text-align: center;
+  margin: max(28px, env(safe-area-inset-top)) 0 0;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--ink-soft);
+}
+
+.city-carousel {
+  position: relative;
+  margin-top: 22px;
+  height: min(56vh, 420px);
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.city-track {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+.city-track.dragging { transition: none; }
+
+.city-tile {
+  flex: 0 0 auto;
+  width: min(72vw, 300px);
+  margin: 0 14px;
+  border-radius: 20px;
+  background: var(--paper);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.08);
+  padding: 18px 18px 22px;
+  opacity: 0.45;
+  transform: scale(0.86);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  cursor: pointer;
+}
+.city-tile.selected { opacity: 1; transform: scale(1); }
+
+.city-tile canvas {
+  width: 100%;
+  height: 150px;
+  border-radius: 12px;
+  background: var(--bg);
+  display: block;
+}
+
+.city-tile-name {
+  margin-top: 14px;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-align: center;
+}
+.city-tile-tagline {
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  text-align: center;
+  line-height: 1.4;
+}
+.city-tile-locked {
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  text-align: center;
+  margin-top: 10px;
+}
+
+.city-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 18px;
+}
+.city-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #d9dcd3;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+.city-dot.active { background: var(--ink); transform: scale(1.3); }
+
+.city-selected-info {
+  text-align: center;
+  margin-top: 20px;
+}
+.city-selected-name {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+.city-selected-score {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  margin-top: 4px;
+}
+
+/* ===================== Game Over ===================== */
+
+#screen-game-over {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.gameover-eyebrow {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--ink-soft);
+  margin-bottom: 6px;
+}
+.gameover-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 18px;
+}
+.gameover-actions .btn-primary { margin-top: 0; width: 100%; }
+
+/* ===================== Einstellungen ===================== */
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 0;
+  border-bottom: 1px solid #eceee8;
+  margin-bottom: 14px;
+}
+.toggle-btn {
+  border: none;
+  background: var(--ink);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  min-width: 44px;
+}
+.toggle-btn.off { background: #d9dcd3; color: var(--ink); }
+.settings-reset-btn { width: 100%; }
+
+@media (max-width: 520px) {
+  .menu-title { letter-spacing: 0.05em; }
+  .city-tile { width: 78vw; }
 }

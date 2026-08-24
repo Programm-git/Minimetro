@@ -3,83 +3,127 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-<title>Linea — Metro Netzwerk Strategiespiel</title>
+<title>Metro Network</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div id="app">
-    <canvas id="game-canvas"></canvas>
 
-    <div id="hud-top" class="hud">
-      <div class="hud-stat week-clock-stat" title="Wochenfortschritt">
-        <svg id="clock-svg" viewBox="0 0 44 44" width="34" height="34">
-          <circle class="clock-track" cx="22" cy="22" r="17"></circle>
-          <g id="clock-ticks"></g>
-          <circle id="clock-progress" class="clock-progress" cx="22" cy="22" r="17" transform="rotate(-90 22 22)"></circle>
-        </svg>
-        <div class="clock-label">
-          <span id="stat-weekday">Montag</span>
-          <span id="stat-day">Tag 1 · Woche 1</span>
+    <!-- ===================== HAUPTMENÜ ===================== -->
+    <div id="screen-main-menu" class="app-screen">
+      <canvas id="menu-bg-canvas" class="menu-bg-canvas"></canvas>
+      <div class="menu-content">
+        <h1 id="menu-title" class="menu-title">METRO NETWORK</h1>
+        <nav class="menu-links">
+          <button id="btn-menu-play" class="menu-link menu-link-primary">
+            <span class="menu-link-arrow">→</span> Play
+          </button>
+          <button id="btn-menu-daily" class="menu-link">
+            <span class="menu-link-arrow">↘</span> Daily Challenge
+            <span class="menu-daily-info">
+              <span id="daily-date">Monday · 24 August</span>
+              <span id="daily-best">Not played today</span>
+            </span>
+          </button>
+        </nav>
+        <button id="btn-menu-settings" class="menu-settings-btn" title="Einstellungen" aria-label="Einstellungen">⚙</button>
+      </div>
+    </div>
+
+    <!-- ===================== KARTENAUSWAHL ===================== -->
+    <div id="screen-map-selection" class="app-screen">
+      <button id="btn-map-back" class="back-btn" title="Zurück" aria-label="Zurück">←</button>
+      <h2 class="screen-heading">SELECT CITY</h2>
+      <div id="city-carousel" class="city-carousel">
+        <div id="city-track" class="city-track"></div>
+      </div>
+      <div id="city-dots" class="city-dots"></div>
+      <div class="city-selected-info">
+        <div id="city-selected-name" class="city-selected-name">MUNICH</div>
+        <div id="city-selected-score" class="city-selected-score">Highscore: —</div>
+        <button id="btn-city-play" class="btn-primary">PLAY</button>
+      </div>
+    </div>
+
+    <!-- ===================== SPIEL ===================== -->
+    <div id="screen-game" class="app-screen">
+      <canvas id="game-canvas"></canvas>
+
+      <div id="hud-top" class="hud">
+        <div class="hud-stat week-clock-stat" title="Wochenfortschritt">
+          <svg id="clock-svg" viewBox="0 0 44 44" width="34" height="34">
+            <circle class="clock-track" cx="22" cy="22" r="17"></circle>
+            <g id="clock-ticks"></g>
+            <circle id="clock-progress" class="clock-progress" cx="22" cy="22" r="17" transform="rotate(-90 22 22)"></circle>
+          </svg>
+          <div class="clock-label">
+            <span id="stat-weekday">Montag</span>
+            <span id="stat-day">Tag 1 · Woche 1</span>
+          </div>
+        </div>
+        <div class="hud-stat" title="Beförderte Fahrgäste">
+          <span class="hud-icon">👤</span><span id="stat-passengers">0</span>
+        </div>
+        <div class="hud-stat" title="Verfügbare Tunnel">
+          <span class="hud-icon">🚇</span><span id="stat-tunnels">2</span>
+        </div>
+        <div class="hud-stat" title="Züge im Einsatz">
+          <span class="hud-icon">🚆</span><span id="stat-trains">0</span>
         </div>
       </div>
-      <div class="hud-stat" title="Beförderte Fahrgäste">
-        <span class="hud-icon">👤</span><span id="stat-passengers">0</span>
-      </div>
-      <div class="hud-stat" title="Verfügbare Tunnel">
-        <span class="hud-icon">🚇</span><span id="stat-tunnels">2</span>
-      </div>
-      <div class="hud-stat" title="Züge im Einsatz">
-        <span class="hud-icon">🚆</span><span id="stat-trains">0</span>
-      </div>
-    </div>
 
-    <div id="hud-bottom" class="hud">
-      <div id="line-selector"></div>
-      <div id="speed-controls">
-        <button id="btn-pause" class="speed-btn" title="Pause">⏸</button>
+      <div id="hud-bottom" class="hud">
+        <div id="line-selector"></div>
+        <div id="speed-controls">
+          <button id="btn-pause" class="speed-btn" title="Pause">⏸</button>
+        </div>
       </div>
-    </div>
 
-    <div id="toast" class="hidden"></div>
+      <div id="toast" class="hidden"></div>
 
-    <div id="overlay-start" class="overlay">
-      <div class="overlay-card">
-        <h1>Linea</h1>
-        <p class="subtitle">Baue ein U-Bahn-Netz. Halte die Stadt in Bewegung.</p>
-        <p class="hint">Ziehe eine Linie von Station zu Station, um sie zu verbinden.<br/>
-        Ziehe auf freier Fläche zum Verschieben, Mausrad/Pinch zum Zoomen.<br/>
-        Maus oder Touch — beides funktioniert.</p>
-        <div id="highscore-box"></div>
-        <button id="btn-start" class="btn-primary">Spiel starten</button>
+      <div id="overlay-confirm-delete" class="overlay hidden">
+        <div class="overlay-card overlay-card-small">
+          <h2>Linie löschen?</h2>
+          <div class="choice-row">
+            <button id="btn-confirm-delete-yes" class="btn-primary btn-danger">Ja</button>
+            <button id="btn-confirm-delete-no" class="btn-primary btn-secondary">Nein</button>
+          </div>
+        </div>
       </div>
-    </div>
 
-    <div id="overlay-confirm-delete" class="overlay hidden">
-      <div class="overlay-card overlay-card-small">
-        <h2>Linie löschen?</h2>
-        <div class="choice-row">
-          <button id="btn-confirm-delete-yes" class="btn-primary btn-danger">Ja</button>
-          <button id="btn-confirm-delete-no" class="btn-primary btn-secondary">Nein</button>
+      <div id="overlay-upgrade" class="overlay hidden">
+        <div class="overlay-card">
+          <h2 id="upgrade-title">Woche geschafft!</h2>
+          <p class="subtitle">Wähle eine Erweiterung</p>
+          <div id="upgrade-choices" class="choice-row"></div>
         </div>
       </div>
     </div>
 
-    <div id="overlay-upgrade" class="overlay hidden">
+    <!-- ===================== GAME OVER ===================== -->
+    <div id="screen-game-over" class="app-screen">
       <div class="overlay-card">
-        <h2 id="upgrade-title">Woche geschafft!</h2>
-        <p class="subtitle">Wähle eine Erweiterung</p>
-        <div id="upgrade-choices" class="choice-row"></div>
-      </div>
-    </div>
-
-    <div id="overlay-gameover" class="overlay hidden">
-      <div class="overlay-card">
-        <h2>Game Over</h2>
-        <p class="subtitle" id="gameover-reason">Eine Station war zu lange überfüllt.</p>
+        <div id="gameover-eyebrow" class="gameover-eyebrow">MUNICH</div>
+        <h2 id="gameover-headline">1,247 PASSENGERS</h2>
+        <p class="subtitle" id="gameover-subline">New high score!</p>
         <div id="gameover-stats" class="stats-grid"></div>
-        <button id="btn-restart" class="btn-primary">Neu starten</button>
+        <div id="gameover-actions" class="gameover-actions"></div>
       </div>
     </div>
+
+    <!-- ===================== EINSTELLUNGEN (Overlay) ===================== -->
+    <div id="overlay-settings" class="overlay hidden">
+      <div class="overlay-card overlay-card-small">
+        <h2>Einstellungen</h2>
+        <div class="settings-row">
+          <span>Sound</span>
+          <button id="btn-toggle-sound" class="toggle-btn">An</button>
+        </div>
+        <button id="btn-reset-progress" class="btn-primary btn-secondary settings-reset-btn">Highscores zurücksetzen</button>
+        <button id="btn-settings-close" class="btn-primary">Schließen</button>
+      </div>
+    </div>
+
   </div>
 
   <script type="module" src="src/main.js"></script>

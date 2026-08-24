@@ -5,7 +5,7 @@ import {
   PASSENGER_SPAWN_INTERVAL_START, PASSENGER_SPAWN_INTERVAL_MIN,
   OVERCROWD_COUNTDOWN, TRAIN_SPEED, TRAIN_DWELL_TIME, MAX_LINE_SLOTS,
 } from "./constants.js";
-import { generateRiver, findStationPosition, pickShape, segmentCrossesWater } from "./mapgen.js";
+import { generateRivers, findStationPosition, pickShape, segmentCrossesAnyWater } from "./mapgen.js";
 import { buildGraph, findRoute } from "./routing.js";
 
 let uid = 1;
@@ -38,12 +38,29 @@ export const UPGRADE_DEFS = {
   },
 };
 
+// Vollständige Default-Konfiguration, falls kein (oder ein unvollständiges)
+// MapConfig übergeben wird – entspricht dem bisherigen Standardverhalten.
+const DEFAULT_MAP_CONFIG = {
+  id: "default",
+  name: "Standard",
+  riverCount: 1,
+  riverWidthMultiplier: 1,
+  initialStations: INITIAL_STATION_COUNT,
+  initialLines: INITIAL_MAX_LINES,
+  initialTunnels: INITIAL_TUNNELS,
+  initialTrains: 1,
+  stationSpawnRate: 1,
+  passengerSpawnRate: 1,
+  difficulty: 1,
+};
+
 export class GameState {
-  constructor(width, height, rng) {
+  constructor(width, height, rng, config) {
     this.rng = rng || Math.random;
+    this.config = { ...DEFAULT_MAP_CONFIG, ...(config || {}) };
     this.width = width;
     this.height = height;
-    this.river = generateRiver(width, height, this.rng);
+    this.rivers = generateRivers(width, height, this.rng, this.config.riverCount, this.config.riverWidthMultiplier);
 
     this.stations = []; // Station[]
     this.lines = [];    // Line[]
@@ -56,11 +73,12 @@ export class GameState {
     this.week = 0;
     this.dayTimer = 0;
 
-    this.maxLines = INITIAL_MAX_LINES;
-    this.tunnelsAvailable = INITIAL_TUNNELS;
+    this.maxLines = this.config.initialLines;
+    this.tunnelsAvailable = this.config.initialTunnels;
     this.stationCapacityBonus = 0;
     this.trainCapacityBonus = 0;
     this.trainSpeedMultiplier = 1;
+    this._starterTrainsGranted = false;
 
     this.transportedCount = 0;
     this.maxWaitingSeen = 0;
@@ -80,8 +98,8 @@ export class GameState {
 
   _seedInitialStations() {
     const shapes = ["circle", "triangle", "square"];
-    for (let i = 0; i < INITIAL_STATION_COUNT; i++) {
-      const pos = findStationPosition(this.stations, this.river, this.width, this.height, this.rng);
+    for (let i = 0; i < this.config.initialStations; i++) {
+      const pos = findStationPosition(this.stations, this.rivers, this.width, this.height, this.rng);
       if (!pos) continue;
       this.stations.push(this._makeStation(pos.x, pos.y, shapes[i % shapes.length]));
     }
@@ -121,7 +139,7 @@ export class GameState {
     for (let i = 0; i < stationIds.length - 1; i++) {
       const a = this.getStationById(stationIds[i]);
       const b = this.getStationById(stationIds[i + 1]);
-      if (a && b && segmentCrossesWater(a, b, this.river)) count++;
+      if (a && b && segmentCrossesAnyWater(a, b, this.rivers)) count++;
     }
     return count;
   }
@@ -168,6 +186,13 @@ export class GameState {
     this.tunnelsAvailable -= newCrossings;
     this.lines.push(line);
     this._spawnTrainForLine(line);
+
+    // Die erste jemals gebaute Linie erhält ggf. zusätzliche Starter-Züge
+    // (siehe MapConfig.initialTrains).
+    if (!this._starterTrainsGranted) {
+      this._starterTrainsGranted = true;
+      for (let i = 1; i < this.config.initialTrains; i++) this._spawnTrainForLine(line);
+    }
     return { ok: true, line };
   }
 
@@ -304,10 +329,11 @@ export class GameState {
     this.stationSpawnTimer -= dt;
     if (this.stationSpawnTimer > 0) return;
     const f = this._difficultyFactor();
-    const interval = STATION_SPAWN_INTERVAL_START - (STATION_SPAWN_INTERVAL_START - STATION_SPAWN_INTERVAL_MIN) * f;
+    const interval = (STATION_SPAWN_INTERVAL_START - (STATION_SPAWN_INTERVAL_START - STATION_SPAWN_INTERVAL_MIN) * f)
+      / this.config.stationSpawnRate;
     this.stationSpawnTimer = interval;
 
-    const pos = findStationPosition(this.stations, this.river, this.width, this.height, this.rng);
+    const pos = findStationPosition(this.stations, this.rivers, this.width, this.height, this.rng);
     if (!pos) return;
     const shape = pickShape(this.day, this.rng);
     this.stations.push(this._makeStation(pos.x, pos.y, shape));
@@ -316,8 +342,13 @@ export class GameState {
   _updatePassengerSpawning(dt) {
     this.passengerSpawnTimer -= dt;
     if (this.passengerSpawnTimer > 0) return;
-    // Verdoppelt sich mit jeder abgeschlossenen Woche.
-    const interval = Math.max(PASSENGER_SPAWN_INTERVAL_MIN, PASSENGER_SPAWN_INTERVAL_START / Math.pow(2, this.week));
+    // Verdoppelt sich mit jeder abgeschlossenen Woche, zusätzlich nach
+    // Karten-Konfiguration (passengerSpawnRate * difficulty) skaliert.
+    const rateMultiplier = this.config.passengerSpawnRate * this.config.difficulty;
+    const interval = Math.max(
+      PASSENGER_SPAWN_INTERVAL_MIN,
+      (PASSENGER_SPAWN_INTERVAL_START / Math.pow(2, this.week)) / rateMultiplier,
+    );
     this.passengerSpawnTimer = interval;
 
     if (this.stations.length === 0) return;

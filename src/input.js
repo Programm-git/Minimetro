@@ -190,10 +190,23 @@ export function attachInput(canvas, state, ui, hooks) {
     zoomAt(ui, screen.x, screen.y, ui.zoom * factor, min, max, state.width, state.height, r.width, r.height);
   }
 
+  const onContextMenu = (e) => e.preventDefault();
+
   canvas.addEventListener("pointerdown", onPointerDown, { passive: false });
   canvas.addEventListener("pointermove", onPointerMove, { passive: false });
   canvas.addEventListener("pointerup", onPointerUp, { passive: false });
   canvas.addEventListener("pointercancel", onPointerUp, { passive: false });
   canvas.addEventListener("wheel", onWheel, { passive: false });
-  canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+  canvas.addEventListener("contextmenu", onContextMenu);
+
+  // Aufräumfunktion: entfernt alle Listener wieder (bei jedem Neustart einer
+  // Partie aufrufen, bevor attachInput erneut für den neuen State genutzt wird).
+  return function detachInput() {
+    canvas.removeEventListener("pointerdown", onPointerDown);
+    canvas.removeEventListener("pointermove", onPointerMove);
+    canvas.removeEventListener("pointerup", onPointerUp);
+    canvas.removeEventListener("pointercancel", onPointerUp);
+    canvas.removeEventListener("wheel", onWheel);
+    canvas.removeEventListener("contextmenu", onContextMenu);
+  };
 }

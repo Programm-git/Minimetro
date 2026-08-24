@@ -1,6 +1,6 @@
 import { STATION_RADIUS, OVERCROWD_COUNTDOWN } from "./constants.js";
 import { computeEdgeWaypoints, pointAlongPath } from "./trackGeometry.js";
-import { segmentCrossesWater } from "./mapgen.js";
+import { segmentCrossesAnyWater } from "./mapgen.js";
 
 const LINE_SPACING = 18; // Pixelabstand paralleler Linien auf gemeinsamer Kante
 const LINE_WIDTH = 13; // Breite einer Fahrbahnstreifen-Linie (einheitlich für alle Linien)
@@ -9,24 +9,26 @@ const CORNER_RADIUS = 22; // Rundung an Richtungswechseln
 const WATER_DASH = [18, 14]; // Strich-Lücke-Muster, nur innerhalb des Wassers sichtbar
 const BG_COLOR = "#eef0e9";
 
-// Baut einen Clip-Pfad, der genau die Fläche des Flussbands abdeckt (eine Kette
-// überlappender Rechtecke entlang der Flusspunkte). Wird verwendet, um die
-// "Lücken" eines Tunnel-/Brückenabschnitts nur innerhalb des Wassers ins
+// Baut einen Clip-Pfad, der genau die Fläche aller Flussbänder abdeckt (eine
+// Kette überlappender Rechtecke entlang der Flusspunkte). Wird verwendet, um
+// die "Lücken" eines Tunnel-/Brückenabschnitts nur innerhalb des Wassers ins
 // Hintergrundgrau zu malen – der Rest der Linie bleibt durchgezogen.
-function clipToRiver(ctx, river) {
+function clipToRivers(ctx, rivers) {
   ctx.beginPath();
-  const hw = river.halfWidth;
-  for (let i = 0; i < river.points.length - 1; i++) {
-    const a = river.points[i], b = river.points[i + 1];
-    const dx = b.x - a.x, dy = b.y - a.y;
-    const len = Math.hypot(dx, dy) || 1;
-    const nx = (-dy / len) * hw, ny = (dx / len) * hw;
-    const ex = (dx / len) * hw, ey = (dy / len) * hw; // Segmentenden verlängern, damit Gelenke lückenlos überlappen
-    ctx.moveTo(a.x - ex + nx, a.y - ey + ny);
-    ctx.lineTo(b.x + ex + nx, b.y + ey + ny);
-    ctx.lineTo(b.x + ex - nx, b.y + ey - ny);
-    ctx.lineTo(a.x - ex - nx, a.y - ey - ny);
-    ctx.closePath();
+  for (const river of rivers) {
+    const hw = river.halfWidth;
+    for (let i = 0; i < river.points.length - 1; i++) {
+      const a = river.points[i], b = river.points[i + 1];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = (-dy / len) * hw, ny = (dx / len) * hw;
+      const ex = (dx / len) * hw, ey = (dy / len) * hw; // Segmentenden verlängern, damit Gelenke lückenlos überlappen
+      ctx.moveTo(a.x - ex + nx, a.y - ey + ny);
+      ctx.lineTo(b.x + ex + nx, b.y + ey + ny);
+      ctx.lineTo(b.x + ex - nx, b.y + ey - ny);
+      ctx.lineTo(a.x - ex - nx, a.y - ey - ny);
+      ctx.closePath();
+    }
   }
   ctx.clip();
 }
@@ -172,7 +174,7 @@ export function draw(ctx, state, ui, viewport) {
   ctx.scale(zoom, zoom);
   ctx.translate(-camera.x, -camera.y);
 
-  drawRiver(ctx, state.river);
+  for (const river of state.rivers) drawRiver(ctx, river);
 
   const edgeLines = buildOffsetTable(state.lines);
   drawLines(ctx, state, edgeLines);
@@ -223,16 +225,16 @@ function drawLines(ctx, state, edgeLines) {
       const points = edgeWaypointsForLine(state, edgeLines, line, i, i + 1);
       if (!points) continue;
       strokeRoundedPath(ctx, points, CORNER_RADIUS);
-      if (segmentCrossesWater(a, b, state.river)) waterEdges.push(points);
+      if (segmentCrossesAnyWater(a, b, state.rivers)) waterEdges.push(points);
     }
   }
   ctx.restore();
 
   // 2) Nur innerhalb der Wasserfläche Lücken ins Hintergrundgrau "stanzen",
   // sodass ausschließlich der Abschnitt über dem Fluss unterbrochen wirkt.
-  if (waterEdges.length > 0 && state.river) {
+  if (waterEdges.length > 0 && state.rivers && state.rivers.length > 0) {
     ctx.save();
-    clipToRiver(ctx, state.river);
+    clipToRivers(ctx, state.rivers);
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.lineWidth = LINE_WIDTH;
