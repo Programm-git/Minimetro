@@ -24,7 +24,7 @@ const canvas = document.getElementById("game-canvas");
 const ctx = canvas.getContext("2d");
 
 let state = null;
-let ui = { draft: null, pointer: null, selectedLineId: null, zoom: 1, camera: { x: 0, y: 0 } };
+let ui = { draft: null, pointer: null, selectedLineId: null, segmentDrag: null, zoom: 1, camera: { x: 0, y: 0 } };
 let viewport = { width: window.innerWidth, height: window.innerHeight };
 let running = false;
 let lastTime = null;
@@ -80,7 +80,7 @@ function startGame(session) {
   state = new GameState(worldW, worldH, rng, config);
   const fitZoom = Math.min(viewport.width / worldW, viewport.height / worldH);
   ui = {
-    draft: null, pointer: null, selectedLineId: null,
+    draft: null, pointer: null, selectedLineId: null, segmentDrag: null,
     zoom: fitZoom, camera: { x: 0, y: 0 },
   };
   clampCamera(ui.camera, ui.zoom, worldW, worldH, viewport.width, viewport.height);

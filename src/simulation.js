@@ -196,6 +196,96 @@ export class GameState {
     return { ok: true, line };
   }
 
+  // Fügt eine bereits bestehende Station in einen bestehenden Streckenabschnitt
+  // (zwischen den Stationen an segmentIndex und segmentIndex+1) einer Linie ein.
+  // Aus [A, B, C] mit segmentIndex 0 und Ziel D wird [A, D, B, C]. Das ist
+  // ausdrücklich kein neuer Ast, sondern eine Umleitung der bestehenden Linie.
+  insertStationIntoLineSegment(lineId, segmentIndex, newStationId) {
+    const line = this.getLineById(lineId);
+    if (!line) return { ok: false, error: "Linie nicht gefunden" };
+    if (segmentIndex < 0 || segmentIndex >= line.stations.length - 1) {
+      return { ok: false, error: "Ungültiger Streckenabschnitt" };
+    }
+
+    const fromStationId = line.stations[segmentIndex];
+    const toStationId = line.stations[segmentIndex + 1];
+    const newStation = this.getStationById(newStationId);
+    if (!newStation) return { ok: false, error: "Station nicht gefunden" };
+    if (newStationId === fromStationId || newStationId === toStationId) {
+      return { ok: false, error: "Station ist bereits Teil dieses Abschnitts" };
+    }
+    if (line.stations.includes(newStationId)) {
+      return { ok: false, error: "Station bereits auf dieser Linie" };
+    }
+
+    const oldStations = line.stations.slice();
+    const newStations = oldStations.slice();
+    newStations.splice(segmentIndex + 1, 0, newStationId);
+
+    if (!this.canAffordLine(line, newStations)) {
+      return { ok: false, error: "Nicht genug Tunnel!" };
+    }
+
+    const newCrossings = this.countWaterCrossings(newStations);
+    this.tunnelsAvailable += line.tunnelUsage;
+    line.stations = newStations;
+    line.tunnelUsage = newCrossings;
+    this.tunnelsAvailable -= newCrossings;
+
+    this._remapTrainsForInsertedStation(line, oldStations, fromStationId, toStationId, newStationId);
+    return { ok: true, line };
+  }
+
+  // Überträgt jeden Zug der Linie sauber auf die neue Stationsreihenfolge:
+  // Züge außerhalb des geteilten Segments werden anhand ihrer Stations-IDs
+  // (stabil, unabhängig vom Array-Index) neu zugeordnet. Der Zug, der gerade
+  // exakt auf dem geteilten Segment fährt oder dort steht, wird proportional
+  // zur Sehnenlänge auf das passende der beiden neuen Teilsegmente projiziert,
+  // sodass er nie an eine andere Stelle springt.
+  _remapTrainsForInsertedStation(line, oldStations, fromId, toId, newId) {
+    const from = this.getStationById(fromId);
+    const to = this.getStationById(toId);
+    const mid = this.getStationById(newId);
+    const dAD = from && mid ? Math.hypot(mid.x - from.x, mid.y - from.y) : 0;
+    const dDB = mid && to ? Math.hypot(to.x - mid.x, to.y - mid.y) : 0;
+    const splitT = dAD + dDB > 0 ? dAD / (dAD + dDB) : 0.5;
+
+    for (const train of this.trains) {
+      if (train.lineId !== line.id) continue;
+      const oldFromId = oldStations[train.fromIndex];
+      const oldToId = oldStations[train.toIndex];
+      if (oldFromId === undefined || oldToId === undefined) continue;
+
+      const forwardMatch = oldFromId === fromId && oldToId === toId;
+      const backwardMatch = oldFromId === toId && oldToId === fromId;
+
+      if (forwardMatch || backwardMatch) {
+        const t = forwardMatch ? train.t : 1 - train.t; // in A→B-Richtung normalisiert
+        let newFromId, newToId, newT;
+        if (t <= splitT) {
+          newFromId = fromId; newToId = newId;
+          newT = splitT > 0 ? t / splitT : 0;
+        } else {
+          newFromId = newId; newToId = toId;
+          newT = 1 - splitT > 0 ? (t - splitT) / (1 - splitT) : 1;
+        }
+        newT = Math.max(0, Math.min(1, newT));
+        if (backwardMatch) {
+          const swap = newFromId; newFromId = newToId; newToId = swap;
+          newT = 1 - newT;
+        }
+        train.fromIndex = line.stations.indexOf(newFromId);
+        train.toIndex = line.stations.indexOf(newToId);
+        train.t = newT;
+      } else {
+        const idxFrom = line.stations.indexOf(oldFromId);
+        const idxTo = line.stations.indexOf(oldToId);
+        if (idxFrom !== -1) train.fromIndex = idxFrom;
+        if (idxTo !== -1) train.toIndex = idxTo;
+      }
+    }
+  }
+
   removeLine(lineId) {
     const line = this.getLineById(lineId);
     if (!line) return;

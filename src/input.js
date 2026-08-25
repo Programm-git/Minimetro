@@ -1,9 +1,12 @@
 import { clampCamera, zoomAt } from "./camera.js";
+import { buildOffsetTable, findSegmentAtPoint } from "./lineLayout.js";
 
 const SCREEN_HIT_RADIUS = 34; // großzügige Trefferzone in Bildschirmpixeln (unabhängig vom Zoom)
 const ZOOM_OUT_FACTOR = 0.5; // wie weit über die "ganze Karte sichtbar"-Stufe hinaus rausgezoomt werden darf
 const ZOOM_IN_FACTOR = 3.5; // wie weit für Details reingezoomt werden darf
 const WHEEL_SENSITIVITY = 0.0015;
+const SEGMENT_HIT_SCREEN_WIDTH = 26; // Trefferbreite für Streckenauswahl in Bildschirmpixeln (breiter als die sichtbare Linie)
+const DRAG_THRESHOLD = 6; // Bildschirmpixel Bewegung, bevor ein Tap zum Segment-Zieh-Vorgang wird
 
 function hitTestStation(state, x, y, worldHitRadius) {
   let best = null;
@@ -23,6 +26,13 @@ export function attachInput(canvas, state, ui, hooks) {
   let draftPointerId = null;
   const panPointers = new Map(); // pointerId -> letzte Bildschirmposition (Pan / Pinch-Zoom)
   let lastPinchDist = null;
+
+  // Segment-Ziehen (bestehende Station in eine Strecke einfügen): pendingSegment
+  // hält den Treffer + Startposition, solange die Bewegung noch unter dem
+  // DRAG_THRESHOLD liegt (=> als Tap behandelt). Erst danach wird ui.segmentDrag
+  // gesetzt, damit ein einfaches Antippen einer Strecke keine Vorschau zeigt.
+  let segmentPointerId = null;
+  let pendingSegment = null; // { seg, downScreen }
 
   function rect() { return canvas.getBoundingClientRect(); }
 
@@ -107,7 +117,7 @@ export function attachInput(canvas, state, ui, hooks) {
     const r = rect();
     const screen = screenPoint(evt, r);
 
-    if (draftPointerId === null && !panPointers.has(evt.pointerId)) {
+    if (draftPointerId === null && segmentPointerId === null && !panPointers.has(evt.pointerId)) {
       const world = toWorldCoords(screen);
       const station = hitTestStation(state, world.x, world.y, worldHitRadius());
       if (station) {
@@ -116,6 +126,19 @@ export function attachInput(canvas, state, ui, hooks) {
         canvas.setPointerCapture(draftPointerId);
         ui.pointer = world;
         startDraftFrom(station);
+        return;
+      }
+
+      // Keine Station getroffen: prüfen, ob ein bestehendes Streckensegment
+      // getroffen wurde (für's Einfügen einer Station per Ziehen). Der eigentliche
+      // Zieh-Modus (ui.segmentDrag) startet erst, wenn DRAG_THRESHOLD überschritten
+      // wird, damit ein kurzes Antippen keine Bearbeitung auslöst.
+      const seg = findSegmentAtPoint(state, buildOffsetTable(state.lines), world, SEGMENT_HIT_SCREEN_WIDTH / ui.zoom);
+      if (seg) {
+        evt.preventDefault();
+        segmentPointerId = evt.pointerId;
+        canvas.setPointerCapture(segmentPointerId);
+        pendingSegment = { seg, downScreen: screen };
         return;
       }
     }
@@ -135,6 +158,42 @@ export function attachInput(canvas, state, ui, hooks) {
       ui.pointer = world;
       const station = hitTestStation(state, world.x, world.y, worldHitRadius());
       if (station) extendDraftTo(station);
+      return;
+    }
+
+    if (evt.pointerId === segmentPointerId) {
+      evt.preventDefault();
+      const r = rect();
+      const screen = screenPoint(evt, r);
+      const world = toWorldCoords(screen);
+
+      if (!ui.segmentDrag) {
+        const dist = Math.hypot(screen.x - pendingSegment.downScreen.x, screen.y - pendingSegment.downScreen.y);
+        if (dist < DRAG_THRESHOLD) return;
+        const { seg } = pendingSegment;
+        ui.segmentDrag = {
+          lineId: seg.lineId,
+          segmentIndex: seg.segmentIndex,
+          fromStationId: seg.fromStationId,
+          toStationId: seg.toStationId,
+          pointer: world,
+          hoverStationId: null,
+        };
+      }
+
+      ui.segmentDrag.pointer = world;
+      const line = state.getLineById(ui.segmentDrag.lineId);
+      const candidate = hitTestStation(state, world.x, world.y, worldHitRadius());
+      if (
+        candidate &&
+        candidate.id !== ui.segmentDrag.fromStationId &&
+        candidate.id !== ui.segmentDrag.toStationId &&
+        line && !line.stations.includes(candidate.id)
+      ) {
+        ui.segmentDrag.hoverStationId = candidate.id;
+      } else {
+        ui.segmentDrag.hoverStationId = null;
+      }
       return;
     }
 
@@ -173,6 +232,25 @@ export function attachInput(canvas, state, ui, hooks) {
       ui.pointer = null;
       return;
     }
+
+    if (evt.pointerId === segmentPointerId) {
+      evt.preventDefault();
+      try { canvas.releasePointerCapture(segmentPointerId); } catch (e) { /* noop */ }
+      segmentPointerId = null;
+      const drag = ui.segmentDrag;
+      pendingSegment = null;
+      ui.segmentDrag = null;
+      if (drag && drag.hoverStationId) {
+        const result = state.insertStationIntoLineSegment(drag.lineId, drag.segmentIndex, drag.hoverStationId);
+        if (!result.ok) {
+          hooks.onToast(result.error);
+        } else {
+          hooks.onLinesChanged();
+        }
+      }
+      return;
+    }
+
     if (panPointers.has(evt.pointerId)) {
       evt.preventDefault();
       try { canvas.releasePointerCapture(evt.pointerId); } catch (e) { /* noop */ }

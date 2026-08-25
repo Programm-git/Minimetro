@@ -1,8 +1,8 @@
 import { STATION_RADIUS, OVERCROWD_COUNTDOWN } from "./constants.js";
 import { computeEdgeWaypoints, pointAlongPath } from "./trackGeometry.js";
 import { segmentCrossesAnyWater } from "./mapgen.js";
+import { buildOffsetTable, edgeWaypointsForLine } from "./lineLayout.js";
 
-const LINE_SPACING = 18; // Pixelabstand paralleler Linien auf gemeinsamer Kante
 const LINE_WIDTH = 13; // Breite einer Fahrbahnstreifen-Linie (einheitlich für alle Linien)
 const END_CAP_LENGTH = 36; // Länge des quer stehenden Endstücks an Linien-Endstationen
 const CORNER_RADIUS = 22; // Rundung an Richtungswechseln
@@ -31,58 +31,6 @@ function clipToRivers(ctx, rivers) {
     }
   }
   ctx.clip();
-}
-
-function edgeKey(aId, bId) { return aId < bId ? `${aId}|${bId}` : `${bId}|${aId}`; }
-
-// Ermittelt für jede (Linie, Segment)-Kombination den Parallel-Offset-Index,
-// damit mehrere Linien auf derselben Strecke sichtbar nebeneinander verlaufen.
-function buildOffsetTable(lines) {
-  const edgeLines = new Map(); // edgeKey -> [lineId,...] in fester Reihenfolge
-  for (const line of lines) {
-    for (let i = 0; i < line.stations.length - 1; i++) {
-      const key = edgeKey(line.stations[i], line.stations[i + 1]);
-      if (!edgeLines.has(key)) edgeLines.set(key, []);
-      const arr = edgeLines.get(key);
-      if (!arr.includes(line.id)) arr.push(line.id);
-    }
-  }
-  return edgeLines;
-}
-
-function offsetForSegment(edgeLines, aId, bId, lineId) {
-  const key = edgeKey(aId, bId);
-  const arr = edgeLines.get(key) || [lineId];
-  const idx = arr.indexOf(lineId);
-  const count = arr.length;
-  return (idx - (count - 1) / 2) * LINE_SPACING;
-}
-
-function perpOffset(ax, ay, bx, by, amount) {
-  const dx = bx - ax, dy = by - ay;
-  const len = Math.hypot(dx, dy) || 1;
-  return { x: (-dy / len) * amount, y: (dx / len) * amount };
-}
-
-// Verschiebt Start- und Endpunkt einer Kante um denselben senkrechten Vektor
-// (bestimmt durch die Gesamtrichtung A→B) und wendet danach dieselbe
-// Horizontal/Vertikal/45°-Zerlegung an. Da beide Endpunkte um exakt denselben
-// Vektor verschoben werden, ist das Ergebnis eine reine Parallelverschiebung
-// der unversetzten Strecke – dadurch bleiben mehrere Linien auf derselben
-// Kante auch in Kurven exakt parallel.
-function getOffsetEdgeWaypoints(a, b, offsetAmount) {
-  const p = perpOffset(a.x, a.y, b.x, b.y, offsetAmount);
-  const offsetA = { x: a.x + p.x, y: a.y + p.y };
-  const offsetB = { x: b.x + p.x, y: b.y + p.y };
-  return computeEdgeWaypoints(offsetA, offsetB);
-}
-
-function edgeWaypointsForLine(state, edgeLines, line, idxA, idxB) {
-  const a = state.getStationById(line.stations[idxA]);
-  const b = state.getStationById(line.stations[idxB]);
-  if (!a || !b) return null;
-  const off = offsetForSegment(edgeLines, a.id, b.id, line.id);
-  return getOffsetEdgeWaypoints(a, b, off);
 }
 
 // Zeichnet eine Punktfolge als durchgehende Linie mit sanft abgerundeten
@@ -177,9 +125,10 @@ export function draw(ctx, state, ui, viewport) {
   for (const river of state.rivers) drawRiver(ctx, river);
 
   const edgeLines = buildOffsetTable(state.lines);
-  drawLines(ctx, state, edgeLines);
+  drawLines(ctx, state, edgeLines, ui.segmentDrag);
   drawLineEndCaps(ctx, state, edgeLines);
   if (ui.draft && ui.draft.stationIds.length > 0) drawDraft(ctx, state, ui.draft, ui.pointer);
+  if (ui.segmentDrag) drawSegmentDragPreview(ctx, state, ui.segmentDrag);
   drawTrains(ctx, state, edgeLines);
   drawStations(ctx, state, ui);
   ctx.restore();
@@ -209,8 +158,10 @@ function drawRiver(ctx, river) {
 // Linien "mitbenutzt" werden können und daher unterschiedliche Parallel-Offsets
 // benötigen. Am Übergang (an der gemeinsamen Station) verdeckt das Stations-
 // symbol jede kleine Naht zwischen zwei unterschiedlich versetzten Kanten.
-function drawLines(ctx, state, edgeLines) {
-  // 1) Alle Linien ganz normal durchgezogen zeichnen.
+function drawLines(ctx, state, edgeLines, segmentDrag) {
+  // 1) Alle Linien ganz normal durchgezogen zeichnen. Das gerade gezogene
+  // Segment (falls vorhanden) wird stattdessen stark abgeschwächt gezeichnet,
+  // da an seiner Stelle drawSegmentDragPreview() die Vorschau übernimmt.
   ctx.save();
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
@@ -224,8 +175,16 @@ function drawLines(ctx, state, edgeLines) {
       if (!a || !b) continue;
       const points = edgeWaypointsForLine(state, edgeLines, line, i, i + 1);
       if (!points) continue;
-      strokeRoundedPath(ctx, points, CORNER_RADIUS);
-      if (segmentCrossesAnyWater(a, b, state.rivers)) waterEdges.push(points);
+      const isDragged = segmentDrag && segmentDrag.lineId === line.id && segmentDrag.segmentIndex === i;
+      if (isDragged) {
+        ctx.save();
+        ctx.globalAlpha = 0.25;
+        strokeRoundedPath(ctx, points, CORNER_RADIUS);
+        ctx.restore();
+      } else {
+        strokeRoundedPath(ctx, points, CORNER_RADIUS);
+        if (segmentCrossesAnyWater(a, b, state.rivers)) waterEdges.push(points);
+      }
     }
   }
   ctx.restore();
@@ -299,6 +258,33 @@ function drawDraft(ctx, state, draft, pointer) {
   });
   if (pointer) ctx.lineTo(pointer.x, pointer.y);
   ctx.stroke();
+  ctx.restore();
+}
+
+// Zeigt live, wie die Strecke nach dem Einfügen der gezogenen Station
+// aussehen würde: A -> (Ziel-Station oder aktuelle Zeigerposition) -> B,
+// als gebogener Vorschau-Pfad in der Linienfarbe, gestrichelt.
+function drawSegmentDragPreview(ctx, state, segmentDrag) {
+  const a = state.getStationById(segmentDrag.fromStationId);
+  const b = state.getStationById(segmentDrag.toStationId);
+  if (!a || !b) return;
+  const line = state.getLineById(segmentDrag.lineId);
+  const mid = segmentDrag.hoverStationId
+    ? state.getStationById(segmentDrag.hoverStationId)
+    : segmentDrag.pointer;
+  if (!mid) return;
+
+  ctx.save();
+  ctx.strokeStyle = (line && line.color) || "#333";
+  ctx.lineWidth = LINE_WIDTH * 0.7;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.setLineDash([4, 12]);
+  ctx.globalAlpha = 0.85;
+  const first = computeEdgeWaypoints(a, mid);
+  const second = computeEdgeWaypoints(mid, b);
+  strokeRoundedPath(ctx, first, CORNER_RADIUS);
+  strokeRoundedPath(ctx, second, CORNER_RADIUS);
   ctx.restore();
 }
 
@@ -388,6 +374,19 @@ function roundRect(ctx, x, y, w, h, r) {
 function drawStations(ctx, state, ui) {
   for (const station of state.stations) {
     const isEndpointHighlight = ui.draft && ui.draft.stationIds.includes(station.id);
+
+    // Ziel-Station beim Ziehen eines Segments hervorheben (Halo), solange sie
+    // als gültiges Einfüge-Ziel erkannt wurde.
+    if (ui.segmentDrag && ui.segmentDrag.hoverStationId === station.id) {
+      const pulse = 1 + Math.sin(performance.now() / 160) * 0.08;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(station.x, station.y, (STATION_RADIUS + 12) * pulse, 0, Math.PI * 2);
+      ctx.strokeStyle = "#c9a227";
+      ctx.lineWidth = 4;
+      ctx.stroke();
+      ctx.restore();
+    }
 
     // Überfüllungs-Countdown-Ring
     if (station.isOvercrowded) {
