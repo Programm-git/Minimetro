@@ -15,18 +15,32 @@
       <div class="menu-content">
         <h1 id="menu-title" class="menu-title">METRO NETWORK</h1>
         <nav class="menu-links">
-          <button id="btn-menu-play" class="menu-link menu-link-primary">
-            <span class="menu-link-arrow">→</span> Play
-          </button>
-          <button id="btn-menu-daily" class="menu-link">
-            <span class="menu-link-arrow">↘</span> Daily Challenge
-            <span class="menu-daily-info">
-              <span id="daily-date">Monday · 24 August</span>
-              <span id="daily-best">Not played today</span>
-            </span>
-          </button>
+          <button id="btn-menu-play" class="menu-btn menu-btn-primary">Play</button>
+          <button id="btn-menu-daily" class="menu-btn menu-btn-secondary">Daily Challenge</button>
         </nav>
         <button id="btn-menu-settings" class="menu-settings-btn" title="Einstellungen" aria-label="Einstellungen">⚙</button>
+      </div>
+    </div>
+
+    <!-- ===================== DAILY CHALLENGE ===================== -->
+    <div id="screen-daily" class="app-screen">
+      <button id="btn-daily-back" class="back-btn" title="Zurück" aria-label="Zurück">←</button>
+      <h2 class="screen-heading">DAILY CHALLENGE</h2>
+
+      <div class="daily-streak">
+        <span id="daily-streak-value" class="daily-streak-value">0</span>
+        <span id="daily-streak-label" class="daily-streak-label">day streak</span>
+      </div>
+
+      <div class="daily-calendar">
+        <div id="daily-calendar-month" class="calendar-month">August 2026</div>
+        <div id="daily-calendar-grid" class="calendar-grid"></div>
+      </div>
+
+      <div class="daily-today-info">
+        <div id="daily-screen-date" class="daily-screen-date">Monday · 24 August</div>
+        <div id="daily-screen-best" class="daily-screen-best">Not played today</div>
+        <button id="btn-daily-play" class="btn-primary">PLAY</button>
       </div>
     </div>
 

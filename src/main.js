@@ -8,12 +8,13 @@ import {
   initSettings, openSettings,
 } from "./ui.js";
 import {
-  saveCityHighScoreIfBetter, saveDailyHighScoreIfBetter, getDailyHighScore,
+  saveCityHighScoreIfBetter, saveDailyHighScoreIfBetter,
 } from "./storage/progressStorage.js";
 import { createSeededRandom, todaySeed } from "./seededRandom.js";
 import { getMapConfig, buildDailyConfig } from "./maps/mapConfigs.js";
 import { ScreenManager } from "./app/ScreenManager.js";
-import { initMainMenu, updateDailyMenuInfo } from "./screens/mainMenuScreen.js";
+import { initMainMenu } from "./screens/mainMenuScreen.js";
+import { initDailyChallengeScreen, onDailyChallengeShown } from "./screens/dailyChallengeScreen.js";
 import { initMapSelection, onMapSelectionShown } from "./screens/mapSelectionScreen.js";
 import { initGameOverScreen, showGameOver } from "./screens/gameOverScreen.js";
 
@@ -35,6 +36,7 @@ let currentSession = null; // { mode: "NORMAL" | "DAILY", mapId, dateSeed?, date
 
 const screenManager = new ScreenManager({
   "main-menu": document.getElementById("screen-main-menu"),
+  "daily": document.getElementById("screen-daily"),
   "map-selection": document.getElementById("screen-map-selection"),
   "game": document.getElementById("screen-game"),
   "game-over": document.getElementById("screen-game-over"),
@@ -52,22 +54,11 @@ function resizeCanvas() {
   }
 }
 
-// --- Daily Challenge Hilfsfunktionen ------------------------------------------
-
 function formatDateLabel(date) {
   const weekday = date.toLocaleDateString("en-US", { weekday: "long" });
   const day = date.getDate();
   const month = date.toLocaleDateString("en-US", { month: "long" });
   return `${weekday} · ${day} ${month}`;
-}
-
-function refreshDailyMenuInfo() {
-  const seed = todaySeed();
-  const best = getDailyHighScore(seed);
-  updateDailyMenuInfo({
-    dateLabel: formatDateLabel(new Date()),
-    bestText: best === null ? "Not played today" : `Today's Best: ${best.toLocaleString("en-US")}`,
-  });
 }
 
 // --- Spiel starten -------------------------------------------------------------
@@ -109,6 +100,10 @@ function startGame(session) {
   running = true;
   lastTime = null;
   requestAnimationFrame(loop);
+}
+
+function startDailyChallenge() {
+  startGame({ mode: "DAILY", mapId: "daily", dateSeed: todaySeed(), dateLabel: formatDateLabel(new Date()) });
 }
 
 function onSelectLine(lineId) {
@@ -179,7 +174,6 @@ function loop(timestamp) {
 // --- Navigation zwischen den Screens --------------------------------------------
 
 function goToMainMenu() {
-  refreshDailyMenuInfo();
   screenManager.show("main-menu");
 }
 
@@ -188,13 +182,23 @@ function goToMapSelection() {
   onMapSelectionShown();
 }
 
+function goToDailyChallenge() {
+  screenManager.show("daily");
+  onDailyChallengeShown();
+}
+
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
 initMainMenu({
   onPlay: goToMapSelection,
-  onDaily: () => startGame({ mode: "DAILY", mapId: "daily", dateSeed: todaySeed(), dateLabel: formatDateLabel(new Date()) }),
+  onDaily: goToDailyChallenge,
   onOpenSettings: openSettings,
+});
+
+initDailyChallengeScreen({
+  onPlay: startDailyChallenge,
+  onBack: goToMainMenu,
 });
 
 initMapSelection({
@@ -209,7 +213,7 @@ initGameOverScreen({
 });
 
 initSettings({
-  onReset: () => { refreshDailyMenuInfo(); onMapSelectionShown(); },
+  onReset: () => onMapSelectionShown(),
 });
 
 initPauseButton(() => {

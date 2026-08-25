@@ -10,9 +10,3 @@ export function initMainMenu({ onPlay, onDaily, onOpenSettings }) {
   menuEl("btn-menu-daily").addEventListener("click", onDaily);
   menuEl("btn-menu-settings").addEventListener("click", onOpenSettings);
 }
-
-// info: { dateLabel: string, bestText: string }
-export function updateDailyMenuInfo(info) {
-  menuEl("daily-date").textContent = info.dateLabel;
-  menuEl("daily-best").textContent = info.bestText;
-}

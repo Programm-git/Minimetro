@@ -65,6 +65,12 @@ export function saveDailyHighScoreIfBetter(dateSeed, passengers) {
   return false;
 }
 
+// Menge der Datums-Seeds ("YYYY-MM-DD"), an denen die Daily Challenge
+// mindestens einmal zu Ende gespielt wurde.
+export function getDailyPlayedDates() {
+  return new Set(Object.keys(getDailyHighScores()));
+}
+
 // --- Einstellungen ------------------------------------------------------------
 
 const DEFAULT_SETTINGS = { soundOn: true };

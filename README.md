@@ -31,7 +31,7 @@ Hauptmenü ──Play──▶ Stadt auswählen ──Play──▶ Spiel ──
 ```
 
 - **Play** führt zur Kartenauswahl mit mehreren Städten (Munich, Berlin, London), jede mit eigener `MapConfig` (Anzahl Flüsse, Startstationen, Tunnel, Spawn-Raten, Schwierigkeit) und eigenem Highscore.
-- **Daily Challenge** erzeugt aus dem aktuellen Kalendertag (`YYYY-MM-DD`) einen deterministischen Seed — alle Spieler bekommen am selben Tag dieselbe Karte/denselben Verlauf. Der Tages-Highscore wird getrennt von den normalen Stadt-Highscores gespeichert.
+- **Daily Challenge** erzeugt aus dem aktuellen Kalendertag (`YYYY-MM-DD`) einen deterministischen Seed — alle Spieler bekommen am selben Tag dieselbe Karte/denselben Verlauf. Vor dem Start zeigt ein eigener Zwischenscreen die aktuelle Tages-Serie ("Streak") und einen Kalender, der markiert, an welchen Tagen bereits gespielt wurde. Der Tages-Highscore wird getrennt von den normalen Stadt-Highscores gespeichert.
 - Die Kartenauswahl ist ein Karussell (Swipe, Drag, Pfeiltasten, Mausrad) mit Mini-Vorschau je Stadt.
 - Ein Zahnrad-Icon im Hauptmenü öffnet Einstellungen (Sound-Toggle, Highscores zurücksetzen).
 
@@ -62,6 +62,7 @@ style.css                      Minimalistisches UI-Styling
 src/app/ScreenManager.js       Zentrale Sichtbarkeits-/Fade-Steuerung der App-Screens
 src/screens/mainMenuScreen.js  Hauptmenü (Play/Daily/Settings) + Bindung der Hintergrundanimation
 src/screens/menuBackground.js  Dekorative, animierte Mini-Metro-Karte im Menühintergrund
+src/screens/dailyChallengeScreen.js  Streak-Anzeige + Kalender der gespielten Tage vor der Daily Challenge
 src/screens/mapSelectionScreen.js  Karussell zur Stadtauswahl (Swipe/Drag/Tasten/Wheel)
 src/screens/gameOverScreen.js  Game-Over-Inhalt & Aktionen, je nach Normal-/Daily-Modus
 src/maps/mapConfigs.js         MapConfig je Stadt + Daily-Challenge-Konfiguration

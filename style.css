@@ -322,49 +322,39 @@ html, body {
 .menu-links {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 20px;
+  align-items: stretch;
+  gap: 14px;
+  width: min(80vw, 260px);
 }
 
-.menu-link {
+.menu-btn {
   border: none;
-  background: transparent;
   font-family: inherit;
-  color: var(--ink-soft);
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   cursor: pointer;
-  padding: 10px 6px;
+  padding: 15px 20px;
   min-height: 44px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  transition: color 0.15s ease, transform 0.15s ease;
+  border-radius: 999px;
+  transition: transform 0.12s ease, box-shadow 0.15s ease;
 }
-.menu-link:hover, .menu-link:active { color: var(--ink); transform: translateY(-1px); }
-.menu-link-arrow { display: inline-block; margin-right: 4px; }
+.menu-btn:active { transform: scale(0.97); }
 
-.menu-link-primary {
-  font-size: 26px;
+.menu-btn-primary {
+  background: var(--ink);
+  color: #fff;
+  font-size: 18px;
+  box-shadow: 0 8px 20px rgba(43,47,51,0.18);
+}
+
+.menu-btn-secondary {
+  background: rgba(255,255,255,0.85);
   color: var(--ink);
-  text-decoration: underline;
-  text-decoration-color: #3b6fd4;
-  text-decoration-thickness: 3px;
-  text-underline-offset: 6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
 
-.menu-daily-info {
-  display: flex;
-  flex-direction: column;
-  font-size: 11.5px;
-  font-weight: 500;
-  color: var(--ink-soft);
-  letter-spacing: 0.02em;
-  margin-top: 2px;
-}
-#daily-best { font-weight: 700; color: #3d9a5c; }
+.menu-btn-secondary:hover { background: #fff; }
 
 .menu-settings-btn {
   position: absolute;
@@ -498,6 +488,105 @@ html, body {
   letter-spacing: 0.05em;
 }
 .city-selected-score {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  margin-top: 4px;
+}
+
+/* ===================== Daily Challenge ===================== */
+
+#screen-daily {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow-y: auto;
+  padding-bottom: 24px;
+}
+
+.daily-streak {
+  margin-top: 26px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.daily-streak-value {
+  font-size: 40px;
+  font-weight: 800;
+  color: #e2822f;
+  line-height: 1;
+}
+.daily-streak-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  letter-spacing: 0.03em;
+}
+
+.daily-calendar {
+  margin-top: 22px;
+  background: var(--paper);
+  border-radius: 18px;
+  padding: 18px 20px;
+  box-shadow: 0 10px 26px rgba(0,0,0,0.07);
+  width: min(88vw, 320px);
+}
+
+.calendar-month {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--ink);
+  margin-bottom: 12px;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.calendar-weekday {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  letter-spacing: 0.03em;
+  padding-bottom: 4px;
+}
+
+.calendar-day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  border-radius: 50%;
+}
+.calendar-day.played {
+  background: #3d9a5c;
+  color: #fff;
+  font-weight: 700;
+}
+.calendar-day.today {
+  box-shadow: 0 0 0 2px var(--ink) inset;
+  color: var(--ink);
+  font-weight: 800;
+}
+.calendar-day.today.played { box-shadow: 0 0 0 2px #fff inset; }
+
+.daily-today-info {
+  margin-top: 20px;
+  text-align: center;
+}
+.daily-screen-date {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+.daily-screen-best {
   font-size: 12.5px;
   color: var(--ink-soft);
   margin-top: 4px;
