@@ -4,7 +4,7 @@ import { getDailyPlayedDates, getDailyHighScore } from "../storage/progressStora
 const dailyEl = (id) => document.getElementById(id);
 const WEEKDAY_LABELS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 
-let onPlayCallback = null;
+let onDailyPlayCallback = null;
 
 // Anzahl aufeinanderfolgender Tage (rückwärts ab heute) mit einer gespielten
 // Daily Challenge. Wurde heute noch nicht gespielt, bricht das die Serie noch
@@ -58,8 +58,8 @@ function buildCalendar(playedDates, today) {
 }
 
 export function initDailyChallengeScreen({ onPlay, onBack }) {
-  onPlayCallback = onPlay;
-  dailyEl("btn-daily-play").addEventListener("click", () => onPlayCallback());
+  onDailyPlayCallback = onPlay;
+  dailyEl("btn-daily-play").addEventListener("click", () => onDailyPlayCallback());
   dailyEl("btn-daily-back").addEventListener("click", onBack);
 }
 
