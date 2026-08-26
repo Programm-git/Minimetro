@@ -571,12 +571,17 @@ html, body {
   color: #fff;
   font-weight: 700;
 }
+.calendar-day.frozen {
+  background: #dbeafc;
+  color: #5b8fc9;
+}
 .calendar-day.today {
   box-shadow: 0 0 0 2px var(--ink) inset;
   color: var(--ink);
   font-weight: 800;
 }
 .calendar-day.today.played { box-shadow: 0 0 0 2px #fff inset; }
+.calendar-day.today.frozen { box-shadow: 0 0 0 2px var(--ink) inset; }
 
 .daily-today-info {
   margin-top: 20px;

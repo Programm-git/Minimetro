@@ -6,17 +6,32 @@ const WEEKDAY_LABELS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 
 let onDailyPlayCallback = null;
 
+function isWeekend(date) {
+  const day = date.getDay(); // 0 = Sonntag, 6 = Samstag
+  return day === 0 || day === 6;
+}
+
 // Anzahl aufeinanderfolgender Tage (rückwärts ab heute) mit einer gespielten
 // Daily Challenge. Wurde heute noch nicht gespielt, bricht das die Serie noch
-// nicht ab – gezählt wird dann rückwärts ab gestern.
+// nicht ab – gezählt wird dann rückwärts ab gestern. An Wochenenden (Samstag/
+// Sonntag) wird der Streak eingefroren: ein nicht gespielter Wochenendtag
+// bricht die Serie nicht ab (zählt aber auch nicht mit), am Montag muss
+// wieder gespielt werden, damit der Streak weiterläuft.
 function computeStreak(playedDates, today) {
   const cursor = new Date(today);
   if (!playedDates.has(todaySeed(cursor))) {
     cursor.setDate(cursor.getDate() - 1);
   }
   let streak = 0;
-  while (playedDates.has(todaySeed(cursor))) {
-    streak++;
+  while (true) {
+    const seed = todaySeed(cursor);
+    if (playedDates.has(seed)) {
+      streak++;
+    } else if (isWeekend(cursor)) {
+      // eingefroren: weder Abbruch noch Zählung, einfach zum Vortag weiter
+    } else {
+      break;
+    }
     cursor.setDate(cursor.getDate() - 1);
   }
   return streak;
@@ -48,8 +63,13 @@ function buildCalendar(playedDates, today) {
     const seed = todaySeed(date);
     const cell = document.createElement("div");
     cell.className = "calendar-day";
-    if (playedDates.has(seed)) cell.classList.add("played");
+    const played = playedDates.has(seed);
+    if (played) cell.classList.add("played");
     if (seed === todaySeedStr) cell.classList.add("today");
+    // Wochenende ohne Partie: sichtbar als "eingefroren" markieren, damit
+    // klar ist, dass der Streak hier nicht bricht, aber Montag wieder
+    // gespielt werden muss.
+    if (!played && isWeekend(date) && seed < todaySeedStr) cell.classList.add("frozen");
     cell.textContent = String(day);
     grid.appendChild(cell);
   }
