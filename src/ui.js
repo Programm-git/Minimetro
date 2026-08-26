@@ -92,6 +92,7 @@ export function updateDebugOverlay(state) {
   el("debug-spawn-rate").textContent = `${snap.passengerSpawnRate.toFixed(2)}×`;
   el("debug-next-station").textContent = `${snap.nextStationSpawn.toFixed(1)}s`;
   el("debug-rare-chance").textContent = `${(snap.rareStationChance * 100).toFixed(1)}%`;
+  el("debug-map-full").textContent = snap.mapFull ? `yes (Crunch ${snap.endgameCrunch.toFixed(2)}×)` : "no";
   el("debug-critical").textContent = snap.criticalStations.length === 0
     ? "–"
     : snap.criticalStations.slice(0, 4).map((s) => `${s.shape} ${s.waiting}/${s.capacity}`).join(", ");

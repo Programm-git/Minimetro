@@ -103,6 +103,11 @@ export class GameState {
     this.transportedCount = 0;
     this.maxWaitingSeen = 0;
 
+    // Zeitpunkt, ab dem keine neue Station mehr auf der Karte Platz fand
+    // (null = Karte noch nicht voll). Ab dann greift der Endgame-Crunch
+    // (siehe _endgameCrunchFactor) statt eines Nachfrage-Plateaus.
+    this.mapFullSince = null;
+
     const startDifficulty = this.difficulty.state(0);
     this.stationSpawnTimer = startDifficulty.stationSpawnMin
       + this.rng() * (startDifficulty.stationSpawnMax - startDifficulty.stationSpawnMin);
@@ -152,8 +157,21 @@ export class GameState {
   // (§6) – dadurch wächst die Gesamtnachfrage organisch mit der Stadtgröße.
   _stationPassengerInterval(station) {
     const d = this.difficulty.state(this.elapsed);
-    const rate = Math.max(0.05, d.passengerRate * station.popularity);
+    const rate = Math.max(0.05, d.passengerRate * station.popularity * this._endgameCrunchFactor());
     return Math.max(PASSENGER_SPAWN_INTERVAL_MIN, PASSENGER_SPAWN_INTERVAL_STATION_BASE / rate);
+  }
+
+  // Sobald die Karte keinen Platz mehr für neue Stationen bietet (siehe
+  // _updateStationSpawning), gibt es kein Nachfrage-Plateau mehr: die
+  // Fahrgastrate wächst ab dann exponentiell weiter, statt sich weiter zu
+  // sättigen. Ein volles Netz kann so nicht mehr auf unbegrenzte Zeit
+  // "ausgesessen" werden – gegen Spielende wird es dadurch so gut wie
+  // unmöglich, weiterzumachen. Die Spielregeln selbst (Kapazitäten,
+  // Countdown) bleiben dabei unverändert; nur der Nachfragedruck steigt.
+  _endgameCrunchFactor() {
+    if (this.mapFullSince == null) return 1;
+    const t = this.elapsed - this.mapFullSince;
+    return Math.exp(t / PROGRESSION_CONFIG.endgameCrunchTau);
   }
 
   // Meiste Stationen bleiben normal frequentiert, einzelne werden per Zufall
@@ -512,7 +530,13 @@ export class GameState {
     const pos = findStationPosition(this.stations, this.rivers, this.width, this.height, this.rng, {
       center: this.worldCenter, maxRadius,
     });
-    if (!pos) return;
+    if (!pos) {
+      // Kein Platz mehr auf der gesamten Karte: Endgame-Crunch aktivieren
+      // (siehe _endgameCrunchFactor), sofern noch nicht aktiv.
+      if (this.mapFullSince == null) this.mapFullSince = this.elapsed;
+      return;
+    }
+    this.mapFullSince = null;
     const shape = pickShape(d.rareStationChance, this.rng);
     this.stations.push(this._makeStation(pos.x, pos.y, shape));
     this._driftPopularity();
@@ -690,6 +714,8 @@ export class GameState {
       nextStationSpawn: Math.max(0, this.stationSpawnTimer),
       rareStationChance: d.rareStationChance,
       expansionFactor: d.expansionFactor,
+      mapFull: this.mapFullSince != null,
+      endgameCrunch: this._endgameCrunchFactor(),
       criticalStations,
     };
   }

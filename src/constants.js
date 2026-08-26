@@ -106,6 +106,14 @@ export const PROGRESSION_CONFIG = {
   // Zentrum geclustert und dürfen erst mit der Zeit über die ganze Karte
   // verteilt erscheinen (siehe §3 im Design-Dokument).
   geographicExpansionTime: 1200, // ~20 Minuten bis zur vollen Kartenausdehnung
+
+  // Echtes Endgame-Limit: Ist die Karte so voll, dass keine gültige Position
+  // für eine neue Station mehr gefunden wird, gibt es kein Plateau mehr –
+  // die Fahrgast-Nachfrage wächst ab diesem Zeitpunkt exponentiell statt
+  // sich weiter sanft zu sättigen, sodass ein volles Netz unweigerlich in
+  // Richtung Überfüllung läuft. `endgameCrunchTau` ist die Verdopplungszeit
+  // (Sekunden, geteilt durch ln 2) ab Eintritt der Kartensättigung.
+  endgameCrunchTau: 45,
 };
 
 export const TRAIN_SPEED = 90; // Pixel pro Sekunde bei 1x
