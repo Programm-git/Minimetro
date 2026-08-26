@@ -5,8 +5,14 @@ const SCREEN_HIT_RADIUS = 34; // großzügige Trefferzone in Bildschirmpixeln (u
 const ZOOM_OUT_FACTOR = 0.5; // wie weit über die "ganze Karte sichtbar"-Stufe hinaus rausgezoomt werden darf
 const ZOOM_IN_FACTOR = 3.5; // wie weit für Details reingezoomt werden darf
 const WHEEL_SENSITIVITY = 0.0015;
-const SEGMENT_HIT_SCREEN_WIDTH = 26; // Trefferbreite für Streckenauswahl in Bildschirmpixeln (breiter als die sichtbare Linie)
+const SEGMENT_HIT_SCREEN_WIDTH = 30; // Trefferbreite für Streckenauswahl in Bildschirmpixeln (breiter als die sichtbare Linie)
+const SEGMENT_HIT_TOUCH_MULTIPLIER = 1.8; // Finger sind ungenauer als eine Maus – Trefferzone bei Touch großzügiger
 const DRAG_THRESHOLD = 6; // Bildschirmpixel Bewegung, bevor ein Tap zum Segment-Zieh-Vorgang wird
+
+function segmentHitWidth(pointerType, zoom) {
+  const base = pointerType === "touch" ? SEGMENT_HIT_SCREEN_WIDTH * SEGMENT_HIT_TOUCH_MULTIPLIER : SEGMENT_HIT_SCREEN_WIDTH;
+  return base / zoom;
+}
 
 function hitTestStation(state, x, y, worldHitRadius) {
   let best = null;
@@ -145,12 +151,16 @@ export function attachInput(canvas, state, ui, hooks) {
       // getroffen wurde (für's Einfügen einer Station per Ziehen). Der eigentliche
       // Zieh-Modus (ui.segmentDrag) startet erst, wenn DRAG_THRESHOLD überschritten
       // wird, damit ein kurzes Antippen keine Bearbeitung auslöst.
-      const seg = findSegmentAtPoint(state, buildOffsetTable(state.lines), world, SEGMENT_HIT_SCREEN_WIDTH / ui.zoom);
+      const seg = findSegmentAtPoint(state, buildOffsetTable(state.lines), world, segmentHitWidth(evt.pointerType, ui.zoom));
       if (seg) {
         evt.preventDefault();
         segmentPointerId = evt.pointerId;
         canvas.setPointerCapture(segmentPointerId);
         pendingSegment = { seg, downScreen: screen };
+        // Sofortiges, dezentes Feedback beim Antippen: der getroffene Abschnitt
+        // hebt sich leicht hervor, noch bevor DRAG_THRESHOLD überschritten wird
+        // und der eigentliche Zieh-Modus (ui.segmentDrag) beginnt.
+        ui.pressedSegment = { lineId: seg.lineId, segmentIndex: seg.segmentIndex };
         return;
       }
     }
@@ -183,6 +193,7 @@ export function attachInput(canvas, state, ui, hooks) {
         const dist = Math.hypot(screen.x - pendingSegment.downScreen.x, screen.y - pendingSegment.downScreen.y);
         if (dist < DRAG_THRESHOLD) return;
         const { seg } = pendingSegment;
+        ui.pressedSegment = null; // die dezente Antipp-Hervorhebung weicht der vollen Zieh-Vorschau
         ui.segmentDrag = {
           lineId: seg.lineId,
           segmentIndex: seg.segmentIndex,
@@ -252,6 +263,7 @@ export function attachInput(canvas, state, ui, hooks) {
       const drag = ui.segmentDrag;
       pendingSegment = null;
       ui.segmentDrag = null;
+      ui.pressedSegment = null;
       if (drag && drag.hoverStationId) {
         const result = state.insertStationIntoLineSegment(drag.lineId, drag.segmentIndex, drag.hoverStationId);
         if (!result.ok) {

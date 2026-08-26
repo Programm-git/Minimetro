@@ -127,6 +127,7 @@ export function draw(ctx, state, ui, viewport) {
   const edgeLines = buildOffsetTable(state.lines);
   drawLines(ctx, state, edgeLines, ui.segmentDrag);
   drawLineEndCaps(ctx, state, edgeLines);
+  if (ui.pressedSegment) drawPressedSegmentHighlight(ctx, state, edgeLines, ui.pressedSegment);
   if (ui.draft && ui.draft.stationIds.length > 0) drawDraft(ctx, state, ui.draft, ui.pointer);
   if (ui.segmentDrag) drawSegmentDragPreview(ctx, state, ui.segmentDrag);
   drawTrains(ctx, state, edgeLines);
@@ -205,6 +206,26 @@ function drawLines(ctx, state, edgeLines, segmentDrag) {
     for (const points of waterEdges) strokeRoundedPath(ctx, points, CORNER_RADIUS);
     ctx.restore();
   }
+}
+
+// Dezentes Feedback direkt beim Antippen/Anklicken einer Strecke (noch bevor
+// die eigentliche Zieh-Vorschau greift): ein heller, etwas breiterer Schein
+// hinter dem betroffenen Abschnitt, damit sofort klar ist, welches Stück
+// gerade "gepackt" wurde.
+function drawPressedSegmentHighlight(ctx, state, edgeLines, pressedSegment) {
+  const line = state.getLineById(pressedSegment.lineId);
+  if (!line) return;
+  const [idxA, idxB] = lineEdge(line, pressedSegment.segmentIndex);
+  const points = edgeWaypointsForLine(state, edgeLines, line, idxA, idxB);
+  if (!points) return;
+  ctx.save();
+  ctx.strokeStyle = "#ffffff";
+  ctx.globalAlpha = 0.55;
+  ctx.lineWidth = LINE_WIDTH + 8;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  strokeRoundedPath(ctx, points, CORNER_RADIUS);
+  ctx.restore();
 }
 
 // Zeichnet an jeder Linien-Endstation ein quer zur Fahrtrichtung stehendes
