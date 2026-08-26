@@ -1,7 +1,7 @@
 import { STATION_RADIUS, OVERCROWD_COUNTDOWN } from "./constants.js";
 import { computeEdgeWaypoints, pointAlongPath } from "./trackGeometry.js";
 import { segmentCrossesAnyWater } from "./mapgen.js";
-import { buildOffsetTable, edgeWaypointsForLine } from "./lineLayout.js";
+import { buildOffsetTable, edgeWaypointsForLine, lineEdgeCount, lineEdge } from "./lineLayout.js";
 
 const LINE_WIDTH = 13; // Breite einer Fahrbahnstreifen-Linie (einheitlich für alle Linien)
 const END_CAP_LENGTH = 36; // Länge des quer stehenden Endstücks an Linien-Endstationen
@@ -169,11 +169,13 @@ function drawLines(ctx, state, edgeLines, segmentDrag) {
   const waterEdges = []; // Kanten, die den Fluss kreuzen, für Schritt 2 merken
   for (const line of state.lines) {
     ctx.strokeStyle = line.color;
-    for (let i = 0; i < line.stations.length - 1; i++) {
-      const a = state.getStationById(line.stations[i]);
-      const b = state.getStationById(line.stations[i + 1]);
+    const edgeCount = lineEdgeCount(line);
+    for (let i = 0; i < edgeCount; i++) {
+      const [idxA, idxB] = lineEdge(line, i);
+      const a = state.getStationById(line.stations[idxA]);
+      const b = state.getStationById(line.stations[idxB]);
       if (!a || !b) continue;
-      const points = edgeWaypointsForLine(state, edgeLines, line, i, i + 1);
+      const points = edgeWaypointsForLine(state, edgeLines, line, idxA, idxB);
       if (!points) continue;
       const isDragged = segmentDrag && segmentDrag.lineId === line.id && segmentDrag.segmentIndex === i;
       if (isDragged) {
@@ -213,6 +215,7 @@ function drawLineEndCaps(ctx, state, edgeLines) {
   ctx.lineWidth = LINE_WIDTH;
   for (const line of state.lines) {
     if (line.stations.length < 2) continue;
+    if (line.isLoop) continue; // Ringlinien haben keine Enden
     const n = line.stations.length;
     drawEndCap(ctx, state, edgeLines, line, 0, 1);
     drawEndCap(ctx, state, edgeLines, line, n - 1, n - 2);
@@ -256,7 +259,13 @@ function drawDraft(ctx, state, draft, pointer) {
     if (!st) return;
     if (i === 0) ctx.moveTo(st.x, st.y); else ctx.lineTo(st.x, st.y);
   });
-  if (pointer) ctx.lineTo(pointer.x, pointer.y);
+  if (draft.isLoop) {
+    // Ringlinie: Vorschau schließt sich sichtbar zurück zur ersten Station.
+    const first = state.getStationById(draft.stationIds[0]);
+    if (first) ctx.lineTo(first.x, first.y);
+  } else if (pointer) {
+    ctx.lineTo(pointer.x, pointer.y);
+  }
   ctx.stroke();
   ctx.restore();
 }
@@ -298,15 +307,27 @@ function drawTrains(ctx, state, edgeLines) {
       if (!st) continue;
       pos = { x: st.x, y: st.y };
     } else {
-      // Wegpunkte immer in kanonischer (aufsteigender) Stationsreihenfolge
-      // berechnen – identisch zu drawLines() –, damit der Zug exakt auf dem
-      // gezeichneten (ggf. parallel versetzten) Gleis bleibt, egal in welche
-      // Richtung er gerade fährt.
-      const lowIdx = Math.min(train.fromIndex, train.toIndex);
-      const highIdx = Math.max(train.fromIndex, train.toIndex);
-      const points = edgeWaypointsForLine(state, edgeLines, line, lowIdx, highIdx);
+      // Wegpunkte immer in derselben Index-Reihenfolge berechnen wie
+      // drawLines()/lineEdge(), damit der Zug exakt auf dem gezeichneten
+      // (ggf. parallel versetzten) Gleis bleibt, egal in welche Richtung er
+      // gerade fährt. Bei der Schließungskante einer Ringlinie (letzte <->
+      // erste Station) ist das die Reihenfolge [letzte, erste], nicht die
+      // aufsteigend sortierte – sonst würde der Zug von der gezeichneten
+      // Kurve abweichen.
+      const n = line.stations.length;
+      const isWrapEdge = line.isLoop && n >= 3
+        && ((train.fromIndex === n - 1 && train.toIndex === 0) || (train.fromIndex === 0 && train.toIndex === n - 1));
+      let idxA, idxB, forward;
+      if (isWrapEdge) {
+        idxA = n - 1; idxB = 0;
+        forward = train.fromIndex === n - 1;
+      } else {
+        idxA = Math.min(train.fromIndex, train.toIndex);
+        idxB = Math.max(train.fromIndex, train.toIndex);
+        forward = train.fromIndex < train.toIndex;
+      }
+      const points = edgeWaypointsForLine(state, edgeLines, line, idxA, idxB);
       if (!points) continue;
-      const forward = train.fromIndex < train.toIndex;
       const orderedPoints = forward ? points : points.slice().reverse();
       const along = pointAlongPath(orderedPoints, train.t);
       pos = { x: along.x, y: along.y };

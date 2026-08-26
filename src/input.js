@@ -18,8 +18,12 @@ function hitTestStation(state, x, y, worldHitRadius) {
   return best;
 }
 
+// Ringlinien haben keine bearbeitbaren Endpunkte im klassischen Sinn (Anfang
+// und Ende sind bereits über die Schließungskante verbunden) – daher hier
+// ausgeschlossen, damit ein Antippen einer ihrer Stationen nicht versehentlich
+// versucht, sie "weiterzuziehen".
 function findLineWithEndpoint(state, stationId) {
-  return state.lines.find((l) => l.stations[0] === stationId || l.stations[l.stations.length - 1] === stationId);
+  return state.lines.find((l) => !l.isLoop && (l.stations[0] === stationId || l.stations[l.stations.length - 1] === stationId));
 }
 
 export function attachInput(canvas, state, ui, hooks) {
@@ -61,7 +65,7 @@ export function attachInput(canvas, state, ui, hooks) {
       if (stationIds[0] === station.id && stationIds[stationIds.length - 1] !== station.id) {
         stationIds = stationIds.slice().reverse();
       }
-      ui.draft = { lineId: line.id, stationIds, color: line.color };
+      ui.draft = { lineId: line.id, stationIds, color: line.color, isLoop: false };
       ui.selectedLineId = line.id;
       return;
     }
@@ -71,7 +75,7 @@ export function attachInput(canvas, state, ui, hooks) {
       if (selected) {
         const idx = selected.stations.indexOf(station.id);
         if (idx !== -1) {
-          ui.draft = { lineId: selected.id, stationIds: selected.stations.slice(0, idx + 1), color: selected.color };
+          ui.draft = { lineId: selected.id, stationIds: selected.stations.slice(0, idx + 1), color: selected.color, isLoop: false };
           return;
         }
       }
@@ -81,7 +85,7 @@ export function attachInput(canvas, state, ui, hooks) {
       hooks.onToast("Keine Linie mehr frei");
       return;
     }
-    ui.draft = { lineId: null, stationIds: [station.id], color: null };
+    ui.draft = { lineId: null, stationIds: [station.id], color: null, isLoop: false };
   }
 
   function extendDraftTo(station) {
@@ -92,17 +96,25 @@ export function attachInput(canvas, state, ui, hooks) {
     // Zurückziehen auf die vorletzte Station -> Linie dort kürzen
     if (ids.length >= 2 && ids[ids.length - 2] === station.id) {
       ids.pop();
+      ui.draft.isLoop = false;
       return;
     }
-    if (ids.includes(station.id)) return; // keine Schleifen
+    // Zurück zur allerersten Station gezogen -> Ringlinie schließen (mind. 3
+    // Stationen nötig, sonst wäre es nur ein Hin-und-Her auf einer Kante).
+    if (station.id === ids[0] && ids.length >= 3) {
+      ui.draft.isLoop = true;
+      return;
+    }
+    if (ids.includes(station.id)) return; // keine sonstigen Schleifen
+    ui.draft.isLoop = false;
     ids.push(station.id);
   }
 
   function finishDraft() {
     if (!ui.draft) return;
-    const { lineId, stationIds } = ui.draft;
+    const { lineId, stationIds, isLoop } = ui.draft;
     if (stationIds.length >= 2) {
-      const result = state.commitLine(lineId, stationIds);
+      const result = state.commitLine(lineId, stationIds, isLoop);
       if (!result.ok) {
         hooks.onToast(result.error);
       } else {

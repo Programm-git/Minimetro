@@ -56,9 +56,51 @@ export const MAP_CONFIGS = {
     passengerSpawnRate: 1.15,
     difficulty: 1.3,
   },
+  newyork: {
+    id: "newyork",
+    name: "New York",
+    tagline: "Zwei Flüsse umschließen die Insel, dichtes Netz nötig",
+    riverCount: 2,
+    riverWidthMultiplier: 1.3,
+    initialStations: 4,
+    initialLines: 3,
+    initialTunnels: 3,
+    initialTrains: 1,
+    stationSpawnRate: 1.05,
+    passengerSpawnRate: 1.2,
+    difficulty: 1.25,
+  },
+  paris: {
+    id: "paris",
+    name: "Paris",
+    tagline: "Kompakte Karte, ein ruhiger Fluss durch die Mitte",
+    riverCount: 1,
+    riverWidthMultiplier: 1.1,
+    initialStations: 3,
+    initialLines: 3,
+    initialTunnels: 2,
+    initialTrains: 1,
+    stationSpawnRate: 1.1,
+    passengerSpawnRate: 1.05,
+    difficulty: 1.1,
+  },
+  hongkong: {
+    id: "hongkong",
+    name: "Hong Kong",
+    tagline: "Breiter Hafen, hoher Schwierigkeitsgrad",
+    riverCount: 1,
+    riverWidthMultiplier: 2.1,
+    initialStations: 3,
+    initialLines: 3,
+    initialTunnels: 3,
+    initialTrains: 1,
+    stationSpawnRate: 1.1,
+    passengerSpawnRate: 1.3,
+    difficulty: 1.4,
+  },
 };
 
-export const CITY_ORDER = ["munich", "berlin", "london"];
+export const CITY_ORDER = ["munich", "berlin", "london", "newyork", "paris", "hongkong"];
 
 export function getMapConfig(id) {
   return MAP_CONFIGS[id] || MAP_CONFIGS[CITY_ORDER[0]];

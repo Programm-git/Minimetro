@@ -133,7 +133,8 @@ html, body {
   transform: scale(1.08);
 }
 .line-chip.empty {
-  background: repeating-linear-gradient(45deg, #dcdfd8, #dcdfd8 4px, #eceee8 4px, #eceee8 8px);
+  opacity: 0.4;
+  cursor: default;
 }
 
 #speed-controls {

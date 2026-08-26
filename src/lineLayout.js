@@ -9,13 +9,30 @@ export const LINE_SPACING = 18; // Pixelabstand paralleler Linien auf gemeinsame
 
 function edgeKey(aId, bId) { return aId < bId ? `${aId}|${bId}` : `${bId}|${aId}`; }
 
+// Anzahl der Kanten einer Linie: bei einer Ringlinie zusätzlich die
+// schließende Kante von der letzten zurück zur ersten Station.
+export function lineEdgeCount(line) {
+  if (line.stations.length < 2) return 0;
+  return line.isLoop && line.stations.length >= 3 ? line.stations.length : line.stations.length - 1;
+}
+
+// Liefert die Stations-Indizes [idxA, idxB] der Kante mit Index `i` (0-basiert).
+// Für Ringlinien ist die letzte Kante (i === stations.length - 1) die
+// Schließungskante zurück zur ersten Station.
+export function lineEdge(line, i) {
+  const isWrapEdge = line.isLoop && i === line.stations.length - 1;
+  return isWrapEdge ? [i, 0] : [i, i + 1];
+}
+
 // Ermittelt für jede (Linie, Segment)-Kombination den Parallel-Offset-Index,
 // damit mehrere Linien auf derselben Strecke sichtbar nebeneinander verlaufen.
 export function buildOffsetTable(lines) {
   const edgeLines = new Map(); // edgeKey -> [lineId,...] in fester Reihenfolge
   for (const line of lines) {
-    for (let i = 0; i < line.stations.length - 1; i++) {
-      const key = edgeKey(line.stations[i], line.stations[i + 1]);
+    const edgeCount = lineEdgeCount(line);
+    for (let i = 0; i < edgeCount; i++) {
+      const [idxA, idxB] = lineEdge(line, i);
+      const key = edgeKey(line.stations[idxA], line.stations[idxB]);
       if (!edgeLines.has(key)) edgeLines.set(key, []);
       const arr = edgeLines.get(key);
       if (!arr.includes(line.id)) arr.push(line.id);
@@ -81,8 +98,10 @@ export function distancePointToSegment(p, a, b) {
 export function findSegmentAtPoint(state, edgeLines, worldPoint, hitWidth) {
   let best = null;
   for (const line of state.lines) {
-    for (let i = 0; i < line.stations.length - 1; i++) {
-      const points = edgeWaypointsForLine(state, edgeLines, line, i, i + 1);
+    const edgeCount = lineEdgeCount(line);
+    for (let i = 0; i < edgeCount; i++) {
+      const [idxA, idxB] = lineEdge(line, i);
+      const points = edgeWaypointsForLine(state, edgeLines, line, idxA, idxB);
       if (!points) continue;
       for (let k = 0; k < points.length - 1; k++) {
         const d = distancePointToSegment(worldPoint, points[k], points[k + 1]);
@@ -90,8 +109,8 @@ export function findSegmentAtPoint(state, edgeLines, worldPoint, hitWidth) {
           best = {
             lineId: line.id,
             segmentIndex: i,
-            fromStationId: line.stations[i],
-            toStationId: line.stations[i + 1],
+            fromStationId: line.stations[idxA],
+            toStationId: line.stations[idxB],
             distance: d,
           };
         }

@@ -15,6 +15,11 @@ export function buildGraph(lines) {
       ensure(stops[i]).add(stops[i + 1]);
       ensure(stops[i + 1]).add(stops[i]);
     }
+    // Ringlinie: schließende Kante von der letzten zurück zur ersten Station.
+    if (line.isLoop && stops.length >= 3) {
+      ensure(stops[stops.length - 1]).add(stops[0]);
+      ensure(stops[0]).add(stops[stops.length - 1]);
+    }
   }
   return adjacency;
 }

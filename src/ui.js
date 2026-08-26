@@ -1,4 +1,4 @@
-import { DAY_SECONDS } from "./constants.js";
+import { DAY_SECONDS, LINE_COLORS } from "./constants.js";
 import { UPGRADE_DEFS } from "./simulation.js";
 import { loadSettings, saveSettings, resetAllProgress } from "./storage/progressStorage.js";
 
@@ -71,8 +71,11 @@ export function renderLineSelector(state, ui, onSelect, onRequestDelete) {
     const line = state.lines[i];
     const chip = document.createElement("div");
     chip.className = "line-chip" + (line ? "" : " empty");
+    // Auch noch nicht gebaute Slots zeigen sofort ihre (feste) Farbe, statt
+    // eines grauen Platzhalters – nur schwächer eingeblendet, bis eine Linie
+    // dort tatsächlich existiert.
+    chip.style.background = (line ? line.color : LINE_COLORS[i % LINE_COLORS.length].css);
     if (line) {
-      chip.style.background = line.color;
       if (ui.selectedLineId === line.id) chip.classList.add("selected");
       chip.addEventListener("click", () => {
         const now = Date.now();

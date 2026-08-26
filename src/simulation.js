@@ -134,39 +134,51 @@ export class GameState {
 
   // Berechnet, wie viele NEUE Wasserquerungen eine Stationsfolge benötigt
   // (verglichen mit optional übergebenen bereits gezählten Segmenten).
-  countWaterCrossings(stationIds) {
+  // `loop`: zusätzlich die schließende Kante von der letzten zur ersten
+  // Station mitzählen (Ringlinie).
+  countWaterCrossings(stationIds, loop = false) {
     let count = 0;
     for (let i = 0; i < stationIds.length - 1; i++) {
       const a = this.getStationById(stationIds[i]);
       const b = this.getStationById(stationIds[i + 1]);
       if (a && b && segmentCrossesAnyWater(a, b, this.rivers)) count++;
     }
+    if (loop && stationIds.length >= 3) {
+      const a = this.getStationById(stationIds[stationIds.length - 1]);
+      const b = this.getStationById(stationIds[0]);
+      if (a && b && segmentCrossesAnyWater(a, b, this.rivers)) count++;
+    }
     return count;
   }
 
-  canAffordLine(existingLine, newStationIds) {
+  canAffordLine(existingLine, newStationIds, loop = false) {
     const existingCrossings = existingLine ? existingLine.tunnelUsage : 0;
-    const newCrossings = this.countWaterCrossings(newStationIds);
+    const newCrossings = this.countWaterCrossings(newStationIds, loop);
     const delta = newCrossings - existingCrossings;
     return delta <= this.tunnelsAvailable;
   }
 
   // Erstellt eine neue Linie oder aktualisiert eine bestehende (per lineId).
+  // `isLoop`: die Linie schließt sich von der letzten zurück zur ersten
+  // Station (Ringlinie) – Züge fahren dann immer in eine Richtung weiter,
+  // statt an den Enden umzukehren.
   // Gibt {ok, error} zurück.
-  commitLine(lineId, stationIds) {
+  commitLine(lineId, stationIds, isLoop = false) {
     if (stationIds.length < 2) return { ok: false, error: "zu kurz" };
+    const loop = isLoop && stationIds.length >= 3;
     const existing = lineId ? this.getLineById(lineId) : null;
 
-    if (!this.canAffordLine(existing, stationIds)) {
+    if (!this.canAffordLine(existing, stationIds, loop)) {
       return { ok: false, error: "Nicht genug Tunnel!" };
     }
 
-    const newCrossings = this.countWaterCrossings(stationIds);
+    const newCrossings = this.countWaterCrossings(stationIds, loop);
 
     if (existing) {
       this.tunnelsAvailable += existing.tunnelUsage;
       existing.stations = stationIds.slice();
       existing.tunnelUsage = newCrossings;
+      existing.isLoop = loop;
       this.tunnelsAvailable -= newCrossings;
       this._clampTrainsToLine(existing);
       return { ok: true, line: existing };
@@ -182,6 +194,7 @@ export class GameState {
       color: color.css,
       stations: stationIds.slice(),
       tunnelUsage: newCrossings,
+      isLoop: loop,
     };
     this.tunnelsAvailable -= newCrossings;
     this.lines.push(line);
@@ -203,12 +216,16 @@ export class GameState {
   insertStationIntoLineSegment(lineId, segmentIndex, newStationId) {
     const line = this.getLineById(lineId);
     if (!line) return { ok: false, error: "Linie nicht gefunden" };
-    if (segmentIndex < 0 || segmentIndex >= line.stations.length - 1) {
+    const edgeCount = line.isLoop ? line.stations.length : line.stations.length - 1;
+    if (segmentIndex < 0 || segmentIndex >= edgeCount) {
       return { ok: false, error: "Ungültiger Streckenabschnitt" };
     }
+    // Bei einer Ringlinie ist der letzte Abschnitt die schließende Kante
+    // von der letzten zurück zur ersten Station.
+    const isWrapEdge = segmentIndex === line.stations.length - 1;
 
     const fromStationId = line.stations[segmentIndex];
-    const toStationId = line.stations[segmentIndex + 1];
+    const toStationId = isWrapEdge ? line.stations[0] : line.stations[segmentIndex + 1];
     const newStation = this.getStationById(newStationId);
     if (!newStation) return { ok: false, error: "Station nicht gefunden" };
     if (newStationId === fromStationId || newStationId === toStationId) {
@@ -220,13 +237,15 @@ export class GameState {
 
     const oldStations = line.stations.slice();
     const newStations = oldStations.slice();
-    newStations.splice(segmentIndex + 1, 0, newStationId);
+    // Bei der schließenden Kante wird die neue Station einfach ans Ende
+    // angehängt (danach folgt weiterhin die erste Station als Ringschluss).
+    newStations.splice(isWrapEdge ? newStations.length : segmentIndex + 1, 0, newStationId);
 
-    if (!this.canAffordLine(line, newStations)) {
+    if (!this.canAffordLine(line, newStations, line.isLoop)) {
       return { ok: false, error: "Nicht genug Tunnel!" };
     }
 
-    const newCrossings = this.countWaterCrossings(newStations);
+    const newCrossings = this.countWaterCrossings(newStations, line.isLoop);
     this.tunnelsAvailable += line.tunnelUsage;
     line.stations = newStations;
     line.tunnelUsage = newCrossings;
@@ -489,6 +508,18 @@ export class GameState {
 
   _departTrain(train, line) {
     const stops = line.stations;
+    // Ringlinie: am "Ende" des Arrays einfach zur ersten Station weiterfahren
+    // (bzw. umgekehrt), statt an den Enden umzukehren.
+    if (line.isLoop && stops.length >= 3) {
+      const nextIndex = (train.toIndex + train.direction + stops.length) % stops.length;
+      train.fromIndex = train.toIndex;
+      train.toIndex = nextIndex;
+      train.t = 0;
+      train.state = "moving";
+      train.atStationId = null;
+      return;
+    }
+
     let nextIndex = train.toIndex + train.direction;
     if (nextIndex < 0 || nextIndex >= stops.length) {
       train.direction *= -1;
@@ -511,9 +542,11 @@ export class GameState {
     const line = this.getLineById(train.lineId);
     const stops = line.stations;
     const nextIndexIfContinue = train.toIndex + train.direction;
-    const nextStopId = (nextIndexIfContinue >= 0 && nextIndexIfContinue < stops.length)
-      ? stops[nextIndexIfContinue]
-      : stops[train.toIndex - train.direction]; // Endstation kehrt um
+    const nextStopId = (line.isLoop && stops.length >= 3)
+      ? stops[(nextIndexIfContinue + stops.length) % stops.length]
+      : (nextIndexIfContinue >= 0 && nextIndexIfContinue < stops.length)
+        ? stops[nextIndexIfContinue]
+        : stops[train.toIndex - train.direction]; // Endstation kehrt um
 
     // 1) Aussteigen: Ziel erreicht oder Linie hilft nicht mehr weiter.
     const staying = [];
