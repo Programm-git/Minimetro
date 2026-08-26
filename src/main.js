@@ -5,7 +5,7 @@ import { clampCamera } from "./camera.js";
 import {
   initPauseButton, setPauseButtonState, showToast, updateHud,
   renderLineSelector, showUpgradeOverlay, showDeleteConfirm,
-  initSettings, openSettings,
+  initSettings, openSettings, toggleDebugOverlay, updateDebugOverlay,
 } from "./ui.js";
 import {
   saveCityHighScoreIfBetter, saveDailyHighScoreIfBetter,
@@ -165,6 +165,7 @@ function loop(timestamp) {
   if (hudAccumulator > 0.15) {
     hudAccumulator = 0;
     updateHud(state);
+    updateDebugOverlay(state);
   }
 
   draw(ctx, state, ui, viewport);
@@ -189,6 +190,15 @@ function goToDailyChallenge() {
 
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
+
+// Debug-Overlay (§23): mit F3 ein-/ausblenden, unabhängig vom aktuellen Screen.
+window.addEventListener("keydown", (evt) => {
+  if (evt.key === "F3") {
+    evt.preventDefault();
+    const visible = toggleDebugOverlay();
+    if (visible && state) updateDebugOverlay(state);
+  }
+});
 
 initMainMenu({
   onPlay: goToMapSelection,

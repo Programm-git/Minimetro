@@ -1,12 +1,14 @@
 import {
   LINE_COLORS, DAY_SECONDS, WEEKDAYS, INITIAL_STATION_COUNT, INITIAL_MAX_LINES,
   INITIAL_TUNNELS, INITIAL_TRAIN_CAPACITY, INITIAL_STATION_CAPACITY,
-  STATION_SPAWN_INTERVAL_START, STATION_SPAWN_INTERVAL_MIN,
-  PASSENGER_SPAWN_INTERVAL_START, PASSENGER_SPAWN_INTERVAL_MIN,
+  PASSENGER_SPAWN_INTERVAL_STATION_BASE, PASSENGER_SPAWN_INTERVAL_MIN,
   OVERCROWD_COUNTDOWN, TRAIN_SPEED, TRAIN_DWELL_TIME, MAX_LINE_SLOTS,
+  SHAPES, COMMON_SHAPES, SHAPE_DEMAND_WEIGHT, STATION_POPULARITY_MIN, STATION_POPULARITY_MAX,
+  WORLD_PADDING, PROGRESSION_CONFIG,
 } from "./constants.js";
 import { generateRivers, findStationPosition, pickShape, segmentCrossesAnyWater } from "./mapgen.js";
 import { buildGraph, findRoute } from "./routing.js";
+import { DifficultyManager } from "./progression.js";
 
 let uid = 1;
 const nextId = (prefix) => `${prefix}${uid++}`;
@@ -52,6 +54,8 @@ const DEFAULT_MAP_CONFIG = {
   stationSpawnRate: 1,
   passengerSpawnRate: 1,
   difficulty: 1,
+  expansionRate: 1,
+  rareStationRate: 1,
 };
 
 export class GameState {
@@ -61,6 +65,22 @@ export class GameState {
     this.width = width;
     this.height = height;
     this.rivers = generateRivers(width, height, this.rng, this.config.riverCount, this.config.riverWidthMultiplier);
+
+    // Zentrale Schwierigkeits-/Progressionslogik (siehe progression.js): alle
+    // Karten-spezifischen Multiplikatoren fließen hier gebündelt ein.
+    this.difficulty = new DifficultyManager(PROGRESSION_CONFIG, {
+      stationSpawnRate: this.config.stationSpawnRate,
+      passengerSpawnRate: this.config.passengerSpawnRate,
+      difficulty: this.config.difficulty,
+      expansionRate: this.config.expansionRate,
+      rareStationRate: this.config.rareStationRate,
+    });
+    // Geografische Ausbreitung: neue Stationen entstehen zunächst eng um das
+    // Kartenzentrum geclustert (clusterRadius) und dürfen sich erst mit
+    // wachsendem expansionFactor bis maxSpawnRadius über die Karte verteilen.
+    this.worldCenter = { x: width / 2, y: height / 2 };
+    this.clusterRadius = Math.min(width, height) * 0.18;
+    this.maxSpawnRadius = Math.hypot(width, height) / 2 - WORLD_PADDING;
 
     this.stations = []; // Station[]
     this.lines = [];    // Line[]
@@ -83,8 +103,9 @@ export class GameState {
     this.transportedCount = 0;
     this.maxWaitingSeen = 0;
 
-    this.stationSpawnTimer = 6;
-    this.passengerSpawnTimer = 3;
+    const startDifficulty = this.difficulty.state(0);
+    this.stationSpawnTimer = startDifficulty.stationSpawnMin
+      + this.rng() * (startDifficulty.stationSpawnMax - startDifficulty.stationSpawnMin);
 
     this.gameOver = false;
     this.gameOverReason = "";
@@ -97,23 +118,49 @@ export class GameState {
   }
 
   _seedInitialStations() {
-    const shapes = ["circle", "triangle", "square"];
+    // Der Spielstart ist bewusst eng geclustert (siehe §3/§17): ein kleines,
+    // überschaubares Startgebiet statt sofort über die ganze Karte verteilter Stationen.
+    const opts = { center: this.worldCenter, maxRadius: this.clusterRadius };
     for (let i = 0; i < this.config.initialStations; i++) {
-      const pos = findStationPosition(this.stations, this.rivers, this.width, this.height, this.rng);
+      const pos = findStationPosition(this.stations, this.rivers, this.width, this.height, this.rng, opts);
       if (!pos) continue;
-      this.stations.push(this._makeStation(pos.x, pos.y, shapes[i % shapes.length]));
+      this.stations.push(this._makeStation(pos.x, pos.y, COMMON_SHAPES[i % COMMON_SHAPES.length]));
     }
   }
 
   _makeStation(x, y, shape) {
-    return {
+    const station = {
       id: nextId("s"),
       x, y, shape,
       waiting: [], // Passenger[]
       capacity: INITIAL_STATION_CAPACITY,
       overcrowdTimer: 0,
       isOvercrowded: false,
+      // "Beliebtheit" dieser Station als Fahrgast-Startpunkt (siehe §6):
+      // meist niedrig, gelegentlich deutlich höher, driftet über die Zeit.
+      popularity: this._rollPopularity(),
+      nextPassengerTimer: 0,
     };
+    // Leicht versetzter Start-Timer, damit nicht alle Stationen synchron feuern.
+    station.nextPassengerTimer = this._stationPassengerInterval(station) * (0.4 + this.rng() * 0.6);
+    return station;
+  }
+
+  // Sekunden bis zum nächsten Fahrgast an dieser einen Station: Fahrgäste
+  // entstehen pro Station unabhängig (siehe §5/§17), gewichtet mit der
+  // globalen Progressionsrate UND der individuellen Stations-Beliebtheit
+  // (§6) – dadurch wächst die Gesamtnachfrage organisch mit der Stadtgröße.
+  _stationPassengerInterval(station) {
+    const d = this.difficulty.state(this.elapsed);
+    const rate = Math.max(0.05, d.passengerRate * station.popularity);
+    return Math.max(PASSENGER_SPAWN_INTERVAL_MIN, PASSENGER_SPAWN_INTERVAL_STATION_BASE / rate);
+  }
+
+  // Meiste Stationen bleiben normal frequentiert, einzelne werden per Zufall
+  // (kubisch zugunsten niedriger Werte verzerrt) zu spürbaren Hotspots.
+  _rollPopularity() {
+    const skew = Math.pow(this.rng(), 3);
+    return STATION_POPULARITY_MIN + skew * (STATION_POPULARITY_MAX - STATION_POPULARITY_MIN);
   }
 
   stationCapacity(station) {
@@ -367,11 +414,37 @@ export class GameState {
   // --- Fahrgäste --------------------------------------------------------------
 
   spawnPassenger(station) {
-    const otherShapes = ["circle", "triangle", "square", "diamond", "star", "cross"]
-      .filter((s) => s !== station.shape && this.stations.some((st) => st.shape === s));
+    const otherShapes = SHAPES.filter((s) => s !== station.shape && this.stations.some((st) => st.shape === s));
     if (otherShapes.length === 0) return;
-    const destShape = otherShapes[Math.floor(this.rng() * otherShapes.length)];
+    // Gewichtete Zielwahl (§8): seltene Formen sind überproportional gefragte
+    // Ziele, sodass z.B. eine einzelne Stern-Station zum Verkehrsknoten wird.
+    const total = otherShapes.reduce((sum, s) => sum + SHAPE_DEMAND_WEIGHT[s], 0);
+    let r = this.rng() * total;
+    let destShape = otherShapes[otherShapes.length - 1];
+    for (const s of otherShapes) {
+      r -= SHAPE_DEMAND_WEIGHT[s];
+      if (r <= 0) { destShape = s; break; }
+    }
     station.waiting.push({ id: nextId("p"), destShape, spawnedAt: this.elapsed });
+  }
+
+  // Lässt die Beliebtheit einiger zufälliger Stationen leicht driften, damit
+  // sich Belastungsschwerpunkte im Spielverlauf verschieben können.
+  _driftPopularity() {
+    if (this.stations.length === 0) return;
+    const count = this.stations.length > 6 ? 2 : 1;
+    for (let i = 0; i < count; i++) {
+      const station = this.stations[Math.floor(this.rng() * this.stations.length)];
+      const delta = (this.rng() - 0.5) * 1.4;
+      station.popularity = Math.max(STATION_POPULARITY_MIN, Math.min(STATION_POPULARITY_MAX, station.popularity + delta));
+    }
+  }
+
+  // Radius um das Kartenzentrum, in dem neue Stationen aktuell entstehen
+  // dürfen (§3: wächst über die Spielzeit von einem engen Cluster bis zur
+  // vollen Kartenausdehnung).
+  _expansionRadius(expansionFactor) {
+    return this.clusterRadius + (this.maxSpawnRadius - this.clusterRadius) * expansionFactor;
   }
 
   // --- Update-Schleife ----------------------------------------------------------
@@ -429,40 +502,32 @@ export class GameState {
     this.pendingUpgradeChoices = null;
   }
 
-  _difficultyFactor() {
-    // 0 bei Tag 1, wächst langsam mit der Zeit
-    return Math.min(1, (this.day - 1) / 40);
-  }
-
   _updateStationSpawning(dt) {
     this.stationSpawnTimer -= dt;
     if (this.stationSpawnTimer > 0) return;
-    const f = this._difficultyFactor();
-    const interval = (STATION_SPAWN_INTERVAL_START - (STATION_SPAWN_INTERVAL_START - STATION_SPAWN_INTERVAL_MIN) * f)
-      / this.config.stationSpawnRate;
-    this.stationSpawnTimer = interval;
+    const d = this.difficulty.state(this.elapsed);
+    this.stationSpawnTimer = d.stationSpawnMin + this.rng() * (d.stationSpawnMax - d.stationSpawnMin);
 
-    const pos = findStationPosition(this.stations, this.rivers, this.width, this.height, this.rng);
+    const maxRadius = this._expansionRadius(d.expansionFactor);
+    const pos = findStationPosition(this.stations, this.rivers, this.width, this.height, this.rng, {
+      center: this.worldCenter, maxRadius,
+    });
     if (!pos) return;
-    const shape = pickShape(this.day, this.rng);
+    const shape = pickShape(d.rareStationChance, this.rng);
     this.stations.push(this._makeStation(pos.x, pos.y, shape));
+    this._driftPopularity();
   }
 
+  // Jede Station läuft auf ihrem eigenen Fahrgast-Timer (siehe
+  // _stationPassengerInterval) statt auf einer einzelnen globalen Rate –
+  // dadurch steigt die Gesamtnachfrage automatisch mit der Stadtgröße.
   _updatePassengerSpawning(dt) {
-    this.passengerSpawnTimer -= dt;
-    if (this.passengerSpawnTimer > 0) return;
-    // Verdoppelt sich mit jeder abgeschlossenen Woche, zusätzlich nach
-    // Karten-Konfiguration (passengerSpawnRate * difficulty) skaliert.
-    const rateMultiplier = this.config.passengerSpawnRate * this.config.difficulty;
-    const interval = Math.max(
-      PASSENGER_SPAWN_INTERVAL_MIN,
-      (PASSENGER_SPAWN_INTERVAL_START / Math.pow(2, this.week)) / rateMultiplier,
-    );
-    this.passengerSpawnTimer = interval;
-
-    if (this.stations.length === 0) return;
-    const station = this.stations[Math.floor(this.rng() * this.stations.length)];
-    this.spawnPassenger(station);
+    for (const station of this.stations) {
+      station.nextPassengerTimer -= dt;
+      if (station.nextPassengerTimer > 0) continue;
+      this.spawnPassenger(station);
+      station.nextPassengerTimer = this._stationPassengerInterval(station);
+    }
   }
 
   _stationsById() {
@@ -602,4 +667,30 @@ export class GameState {
   }
 
   weekdayName() { return WEEKDAYS[this.weekday]; }
+
+  // Momentaufnahme für den Debug-Modus (§23): fasst Kernkennzahlen der
+  // Progression und der aktuellen Netzbelastung zusammen.
+  debugSnapshot() {
+    const d = this.difficulty.state(this.elapsed);
+    const waitingPassengers = this.stations.reduce((sum, s) => sum + s.waiting.length, 0);
+    const passengersInTrains = this.trains.reduce((sum, t) => sum + t.passengers.length, 0);
+    const criticalStations = this.stations
+      .filter((s) => s.waiting.length > this.stationCapacity(s) * 0.6)
+      .map((s) => ({ id: s.id, shape: s.shape, waiting: s.waiting.length, capacity: this.stationCapacity(s) }))
+      .sort((a, b) => b.waiting - a.waiting);
+
+    return {
+      elapsed: this.elapsed,
+      stations: this.stations.length,
+      totalPassengers: this.transportedCount,
+      waitingPassengers,
+      passengersInTrains,
+      difficulty: d.baseMultiplier,
+      passengerSpawnRate: d.passengerRate,
+      nextStationSpawn: Math.max(0, this.stationSpawnTimer),
+      rareStationChance: d.rareStationChance,
+      expansionFactor: d.expansionFactor,
+      criticalStations,
+    };
+  }
 }

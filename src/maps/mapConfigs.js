@@ -12,6 +12,8 @@
 //   stationSpawnRate    Multiplikator auf die Geschwindigkeit neuer Stationen
 //   passengerSpawnRate  Multiplikator auf die Fahrgast-Spawnrate
 //   difficulty          Genereller Schwierigkeitsfaktor (wirkt zusätzlich auf Fahrgäste)
+//   expansionRate       Multiplikator, wie schnell sich die Stadt geografisch ausbreitet (optional, Standard 1)
+//   rareStationRate     Multiplikator auf die Häufigkeit seltener Stationsformen (optional, Standard 1)
 
 export const MAP_CONFIGS = {
   munich: {
@@ -27,6 +29,8 @@ export const MAP_CONFIGS = {
     stationSpawnRate: 1,
     passengerSpawnRate: 1,
     difficulty: 1,
+    expansionRate: 1,
+    rareStationRate: 1,
   },
   berlin: {
     id: "berlin",
@@ -41,6 +45,8 @@ export const MAP_CONFIGS = {
     stationSpawnRate: 0.9,
     passengerSpawnRate: 1.1,
     difficulty: 1.15,
+    expansionRate: 1.1,
+    rareStationRate: 1,
   },
   london: {
     id: "london",
@@ -55,6 +61,8 @@ export const MAP_CONFIGS = {
     stationSpawnRate: 1,
     passengerSpawnRate: 1.15,
     difficulty: 1.3,
+    expansionRate: 0.9,
+    rareStationRate: 1,
   },
   newyork: {
     id: "newyork",
@@ -69,6 +77,8 @@ export const MAP_CONFIGS = {
     stationSpawnRate: 1.05,
     passengerSpawnRate: 1.2,
     difficulty: 1.25,
+    expansionRate: 1.15,
+    rareStationRate: 1.1,
   },
   paris: {
     id: "paris",
@@ -83,6 +93,8 @@ export const MAP_CONFIGS = {
     stationSpawnRate: 1.1,
     passengerSpawnRate: 1.05,
     difficulty: 1.1,
+    expansionRate: 0.95,
+    rareStationRate: 1,
   },
   hongkong: {
     id: "hongkong",
@@ -97,6 +109,8 @@ export const MAP_CONFIGS = {
     stationSpawnRate: 1.1,
     passengerSpawnRate: 1.3,
     difficulty: 1.4,
+    expansionRate: 1.2,
+    rareStationRate: 1.15,
   },
 };
 
@@ -124,5 +138,7 @@ export function buildDailyConfig(rng) {
     stationSpawnRate: 1,
     passengerSpawnRate: 1.2,
     difficulty: 1.2,
+    expansionRate: 1,
+    rareStationRate: 1,
   };
 }

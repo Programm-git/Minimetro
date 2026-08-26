@@ -2,7 +2,7 @@
 // Canvas (für die Kartenauswahl-Kacheln): Flüsse + ein paar Stationen,
 // deterministisch aus der Stadt-Konfiguration abgeleitet.
 import { createSeededRandom } from "../seededRandom.js";
-import { generateRivers, findStationPosition, pickShape } from "../mapgen.js";
+import { generateRivers, findStationPosition } from "../mapgen.js";
 
 const SHAPE_DRAW = {
   circle: (ctx, x, y, r) => ctx.arc(x, y, r, 0, Math.PI * 2),

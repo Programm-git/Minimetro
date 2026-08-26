@@ -1,5 +1,5 @@
 import {
-  SHAPES, SHAPE_UNLOCK_DAY, SHAPE_WEIGHT, WORLD_PADDING, MIN_STATION_DIST,
+  COMMON_SHAPES, RARE_SHAPES, RARE_SHAPE_WEIGHT, WORLD_PADDING, MIN_STATION_DIST,
   RIVER_HALF_WIDTH,
 } from "./constants.js";
 
@@ -79,31 +79,54 @@ export function segmentCrossesAnyWater(a, b, rivers) {
 
 // --- Stationen ---------------------------------------------------------------
 
-export function pickShape(day, rng) {
+// Wählt eine Stationsform. `rareChance` (0..1, aus dem Progressionssystem)
+// bestimmt die Wahrscheinlichkeit, dass überhaupt eine seltene Form
+// (Raute/Stern/Kreuz) gewählt wird; ist sie 0, entstehen ausschließlich die
+// drei Grundformen (Kreis/Dreieck/Quadrat), ganz wie zu Spielbeginn gewünscht.
+export function pickShape(rareChance, rng) {
   const rand = rng || Math.random;
-  const available = SHAPES.filter((s) => day >= SHAPE_UNLOCK_DAY[s]);
-  const total = available.reduce((sum, s) => sum + SHAPE_WEIGHT[s], 0);
-  let r = rand() * total;
-  for (const s of available) {
-    r -= SHAPE_WEIGHT[s];
-    if (r <= 0) return s;
+  if (rareChance > 0 && rand() < rareChance) {
+    const total = RARE_SHAPES.reduce((sum, s) => sum + RARE_SHAPE_WEIGHT[s], 0);
+    let r = rand() * total;
+    for (const s of RARE_SHAPES) {
+      r -= RARE_SHAPE_WEIGHT[s];
+      if (r <= 0) return s;
+    }
+    return RARE_SHAPES[RARE_SHAPES.length - 1];
   }
-  return available[available.length - 1];
+  return COMMON_SHAPES[Math.floor(rand() * COMMON_SHAPES.length)];
 }
 
-// Sucht eine gültige, freie Position für eine neue Station.
-export function findStationPosition(existingStations, rivers, width, height, rng) {
+// Sucht eine gültige, freie Position für eine neue Station. Optional kann
+// über `opts.center` + `opts.maxRadius` die Suche auf einen Umkreis begrenzt
+// werden (geografische Ausbreitung, siehe progression.js: `expansionFactor`
+// wächst über die Spielzeit, sodass neue Stationen zunächst eng um das
+// Kartenzentrum entstehen und sich erst später über die ganze Karte
+// verteilen dürfen). Wird innerhalb des Radius keine Position gefunden,
+// fällt die Suche automatisch auf die gesamte Karte zurück, damit ein
+// Stationsspawn nie grundlos ausfällt.
+export function findStationPosition(existingStations, rivers, width, height, rng, opts) {
   const rand = rng || Math.random;
   const maxAttempts = 220;
-  for (let i = 0; i < maxAttempts; i++) {
-    const x = WORLD_PADDING + rand() * (width - WORLD_PADDING * 2);
-    const y = WORLD_PADDING + rand() * (height - WORLD_PADDING * 2);
-    if (isInAnyWater(x, y, rivers, 18)) continue;
-    let ok = true;
-    for (const s of existingStations) {
-      if (Math.hypot(s.x - x, s.y - y) < MIN_STATION_DIST) { ok = false; break; }
+
+  function search(center, maxRadius) {
+    for (let i = 0; i < maxAttempts; i++) {
+      const x = WORLD_PADDING + rand() * (width - WORLD_PADDING * 2);
+      const y = WORLD_PADDING + rand() * (height - WORLD_PADDING * 2);
+      if (center && maxRadius != null && Math.hypot(x - center.x, y - center.y) > maxRadius) continue;
+      if (isInAnyWater(x, y, rivers, 18)) continue;
+      let ok = true;
+      for (const s of existingStations) {
+        if (Math.hypot(s.x - x, s.y - y) < MIN_STATION_DIST) { ok = false; break; }
+      }
+      if (ok) return { x, y };
     }
-    if (ok) return { x, y };
+    return null;
   }
-  return null;
+
+  if (opts && opts.center && opts.maxRadius != null) {
+    const limited = search(opts.center, opts.maxRadius);
+    if (limited) return limited;
+  }
+  return search(null, null);
 }

@@ -61,6 +61,42 @@ export function updateHud(state) {
   updateWeekClock(state);
 }
 
+// --- Debug-Overlay (§23 im Design-Dokument) -----------------------------------
+// Zeigt die aktuellen Progressions-/Belastungswerte der Schwierigkeitskurve an,
+// damit sich leicht erkennen lässt, ob die Progression sinnvoll funktioniert.
+
+function formatGameTime(elapsedSeconds) {
+  const total = Math.max(0, Math.floor(elapsedSeconds));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+export function toggleDebugOverlay() {
+  const overlay = el("debug-overlay");
+  overlay.classList.toggle("hidden");
+  return !overlay.classList.contains("hidden");
+}
+
+export function updateDebugOverlay(state) {
+  const overlay = el("debug-overlay");
+  if (overlay.classList.contains("hidden")) return;
+
+  const snap = state.debugSnapshot();
+  el("debug-time").textContent = formatGameTime(snap.elapsed);
+  el("debug-difficulty").textContent = `${snap.difficulty.toFixed(2)}×`;
+  el("debug-stations").textContent = String(snap.stations);
+  el("debug-total-passengers").textContent = String(snap.totalPassengers);
+  el("debug-waiting-passengers").textContent = String(snap.waitingPassengers);
+  el("debug-in-trains").textContent = String(snap.passengersInTrains);
+  el("debug-spawn-rate").textContent = `${snap.passengerSpawnRate.toFixed(2)}×`;
+  el("debug-next-station").textContent = `${snap.nextStationSpawn.toFixed(1)}s`;
+  el("debug-rare-chance").textContent = `${(snap.rareStationChance * 100).toFixed(1)}%`;
+  el("debug-critical").textContent = snap.criticalStations.length === 0
+    ? "–"
+    : snap.criticalStations.slice(0, 4).map((s) => `${s.shape} ${s.waiting}/${s.capacity}`).join(", ");
+}
+
 const DOUBLE_TAP_MS = 400;
 const lastChipTap = new Map(); // lineId -> Zeitstempel des letzten Antippens
 

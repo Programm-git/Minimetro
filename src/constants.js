@@ -4,25 +4,38 @@ export const GAME_TITLE = "METRO NETWORK";
 
 export const SHAPES = ["circle", "triangle", "square", "diamond", "star", "cross"];
 
-// Wann eine Formklasse erstmals als Station auftauchen kann (Spieltag).
-export const SHAPE_UNLOCK_DAY = {
-  circle: 0,
-  triangle: 0,
-  square: 0,
-  diamond: 3,
-  star: 7,
-  cross: 12,
-};
+// Zu Spielbeginn existieren ausschließlich diese drei Grundformen; seltene
+// Formen (siehe RARE_SHAPES) schalten sich erst über die Spielprogression
+// (progression.js, rareStationChance) frei.
+export const COMMON_SHAPES = ["circle", "triangle", "square"];
+export const RARE_SHAPES = ["diamond", "star", "cross"];
 
-// Relative Erscheinungswahrscheinlichkeit (seltene Formen sind wichtiger fürs Netz).
-export const SHAPE_WEIGHT = {
-  circle: 10,
-  triangle: 10,
-  square: 10,
-  diamond: 4,
+// Relative Häufigkeit EINER seltenen Form untereinander, sobald seltene
+// Stationen grundsätzlich möglich sind (Raute deutlich häufiger als Kreuz).
+export const RARE_SHAPE_WEIGHT = {
+  diamond: 5,
   star: 2,
   cross: 1,
 };
+
+// Wie attraktiv eine Form als Fahrgast-ZIEL ist (unabhängig davon, wie selten
+// sie als Station vorkommt). Seltene Formen sind bewusst überproportional
+// gefragte Ziele, damit z.B. die eine Stern-Station zum Verkehrsknotenpunkt
+// wird, obwohl sie kaum als Station existiert (siehe Design-Dokument §8).
+export const SHAPE_DEMAND_WEIGHT = {
+  circle: 1,
+  triangle: 1,
+  square: 1,
+  diamond: 1.6,
+  star: 2.4,
+  cross: 2.8,
+};
+
+// Spanne, in der die "Beliebtheit" einer Station (Passagier-Spawngewicht)
+// zufällig gewürfelt und im Spielverlauf sanft driftet (siehe §6: nicht alle
+// Stationen sollen gleich stark belastet werden, und das darf sich verschieben).
+export const STATION_POPULARITY_MIN = 0.25;
+export const STATION_POPULARITY_MAX = 3.2;
 
 export const LINE_COLORS = [
   { id: "red", css: "#e0453c" },
@@ -48,12 +61,52 @@ export const INITIAL_TUNNELS = 2;
 export const INITIAL_TRAIN_CAPACITY = 6;
 export const INITIAL_STATION_CAPACITY = 8;
 
-export const STATION_SPAWN_INTERVAL_START = 22; // Sekunden zwischen neuen Stationen
-export const STATION_SPAWN_INTERVAL_MIN = 8;
-export const PASSENGER_SPAWN_INTERVAL_START = 2.2; // Sekunden zwischen neuen Fahrgästen (global), verdoppelt sich pro Woche
-export const PASSENGER_SPAWN_INTERVAL_MIN = 0.2; // absolute Untergrenze, unabhängig von der Woche
+// Fahrgäste entstehen PRO STATION auf einem eigenen Timer (nicht global) –
+// dadurch wächst die Gesamtnachfrage organisch mit der Anzahl der Stationen
+// (mehr Stationen = mehr gleichzeitige Ursprungsorte für Fahrgäste), statt
+// nur über eine einzelne globale Rate gesteuert zu werden (siehe §5/§17).
+// `PASSENGER_SPAWN_INTERVAL_STATION_BASE` ist das Intervall EINER einzelnen
+// Station bei Popularity 1 und Progressions-Multiplikator 1.
+export const PASSENGER_SPAWN_INTERVAL_STATION_BASE = 26;
+export const PASSENGER_SPAWN_INTERVAL_MIN = 1.2; // absolute Untergrenze pro Station, unabhängig von der Progression
 
 export const OVERCROWD_COUNTDOWN = 10; // Sekunden bis Game Over nach Überschreiten der Kapazität
+
+// --- Schwierigkeits-/Progressionssystem ---------------------------------------
+// Zentrale Balancing-Werte für die zeitabhängige Schwierigkeitskurve
+// (siehe src/progression.js für die Logik, die diese Werte auswertet).
+// Alle Zeitangaben sind simulierte Sekunden (state.elapsed), die bereits die
+// Spielgeschwindigkeit berücksichtigen.
+export const PROGRESSION_CONFIG = {
+  // Bewusst entspannte Anfangsphase: solange steigt die Fahrgast-Nachfrage
+  // noch nicht über die Grundrate hinaus an.
+  gracePeriod: 90,
+
+  // Stationsspawn-Intervall (Sekunden), als Zufallsbereich [min, max], der
+  // sich über feste Zeitanker (0s / stationSpawnMidAt / stationSpawnLateAt)
+  // linear von "Anfang" über "Mitte" zu "Spätphase" verschiebt.
+  stationSpawnStartMin: 40, stationSpawnStartMax: 50,
+  stationSpawnMidMin: 30, stationSpawnMidMax: 40, stationSpawnMidAt: 300,     // ~5 Minuten
+  stationSpawnLateMin: 20, stationSpawnLateMax: 30, stationSpawnLateAt: 900, // ~15 Minuten
+
+  // Fahrgast-Nachfrage: sättigende Wachstumskurve (kein harter Sprung, kein
+  // unbegrenztes Wachstum) plus eine leichte, langsame Schwankung ("Rush Hour"-Ansatz).
+  passengerGrowthRate: 0.0006,  // Geschwindigkeit, mit der sich die Kurve ihrem Maximum nähert
+  passengerGrowthMax: 2.5,      // maximaler Zuwachs über die Grundrate hinaus (Plateau bei ~3.5x)
+  demandVariance: 0.15,         // Amplitude der Schwankung (±15%)
+  demandVariancePeriod: 150,    // Sekunden pro Schwankungszyklus
+
+  // Seltene Stationsformen (Raute/Stern/Kreuz): vor `rareStationsStartAfter`
+  // erscheinen sie gar nicht, danach steigt ihr Anteil sanft bis zum Maximum.
+  rareStationsStartAfter: 420, // ~7 Minuten
+  rareStationsRampTime: 480,   // Sekunden bis rareStationChance ihr Maximum erreicht
+  rareStationMaxChance: 0.09,  // maximaler Anteil seltener Stationen an Neuzugängen
+
+  // Geografische Ausbreitung: neue Stationen entstehen anfangs eng um das
+  // Zentrum geclustert und dürfen erst mit der Zeit über die ganze Karte
+  // verteilt erscheinen (siehe §3 im Design-Dokument).
+  geographicExpansionTime: 1200, // ~20 Minuten bis zur vollen Kartenausdehnung
+};
 
 export const TRAIN_SPEED = 90; // Pixel pro Sekunde bei 1x
 export const TRAIN_DWELL_TIME = 0.6; // Sekunden Aufenthalt an einer Station
