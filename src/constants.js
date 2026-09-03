@@ -59,7 +59,7 @@ export const INITIAL_STATION_COUNT = 3;
 export const INITIAL_MAX_LINES = 3;
 export const INITIAL_TUNNELS = 2;
 export const INITIAL_TRAIN_CAPACITY = 6;
-export const INITIAL_STATION_CAPACITY = 8;
+export const INITIAL_STATION_CAPACITY = 6;
 
 // Fahrgäste entstehen PRO STATION auf einem eigenen Timer (nicht global) –
 // dadurch wächst die Gesamtnachfrage organisch mit der Anzahl der Stationen
@@ -67,7 +67,7 @@ export const INITIAL_STATION_CAPACITY = 8;
 // nur über eine einzelne globale Rate gesteuert zu werden (siehe §5/§17).
 // `PASSENGER_SPAWN_INTERVAL_STATION_BASE` ist das Intervall EINER einzelnen
 // Station bei Popularity 1 und Progressions-Multiplikator 1.
-export const PASSENGER_SPAWN_INTERVAL_STATION_BASE = 19;
+export const PASSENGER_SPAWN_INTERVAL_STATION_BASE = 14;
 export const PASSENGER_SPAWN_INTERVAL_MIN = 1.2; // absolute Untergrenze pro Station, unabhängig von der Progression
 
 export const OVERCROWD_COUNTDOWN = 10; // Sekunden bis Game Over nach Überschreiten der Kapazität
@@ -78,9 +78,10 @@ export const OVERCROWD_COUNTDOWN = 10; // Sekunden bis Game Over nach Überschre
 // Alle Zeitangaben sind simulierte Sekunden (state.elapsed), die bereits die
 // Spielgeschwindigkeit berücksichtigen.
 export const PROGRESSION_CONFIG = {
-  // Kurze Anfangsphase: danach steigt die Fahrgast-Nachfrage bereits über
-  // die Grundrate hinaus an (der Spielstart soll fordernd sein, nicht trivial).
-  gracePeriod: 20,
+  // Keine Schonfrist mehr: die Nachfrage wächst von Beginn an, damit ein
+  // Spieler, der nicht zügig ein funktionierendes Netz aufbaut, auch früh
+  // verlieren kann (siehe Nutzer-Feedback: Spielstart war noch zu leicht).
+  gracePeriod: 0,
 
   // Stationsspawn-Intervall (Sekunden), als Zufallsbereich [min, max], der
   // sich über feste Zeitanker (0s / stationSpawnMidAt / stationSpawnLateAt)
@@ -91,7 +92,7 @@ export const PROGRESSION_CONFIG = {
 
   // Fahrgast-Nachfrage: sättigende Wachstumskurve (kein harter Sprung, kein
   // unbegrenztes Wachstum) plus eine leichte, langsame Schwankung ("Rush Hour"-Ansatz).
-  passengerGrowthRate: 0.0011,  // Geschwindigkeit, mit der sich die Kurve ihrem Maximum nähert
+  passengerGrowthRate: 0.002,   // Geschwindigkeit, mit der sich die Kurve ihrem Maximum nähert
   passengerGrowthMax: 2.5,      // maximaler Zuwachs über die Grundrate hinaus (Plateau bei ~3.5x)
   demandVariance: 0.15,         // Amplitude der Schwankung (±15%)
   demandVariancePeriod: 150,    // Sekunden pro Schwankungszyklus
